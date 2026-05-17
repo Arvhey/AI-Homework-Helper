@@ -100,9 +100,10 @@ const Login = () => {
         {/* Mobile Install App Banner - OUTSIDE the login form, ONLY in login mode */}
         {canInstall && mode === 'login' && (
           <motion.div
+            onClick={installApp}
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="md:hidden w-full max-w-md mb-5 z-20 px-1"
+            className="md:hidden w-full max-w-md mb-5 z-20 px-1 cursor-pointer active:scale-[0.98] transition-transform duration-200"
           >
             <Glass className="p-4 border-accent/20 bg-gradient-to-r from-accent/10 via-primary/5 to-transparent backdrop-blur-xl relative overflow-hidden flex items-center justify-between gap-4 shadow-lg shadow-accent/5 rounded-2xl">
               {/* Decorative Glow */}
@@ -122,14 +123,12 @@ const Login = () => {
                 </div>
               </div>
 
-              <Button
+              <button
                 type="button"
-                onClick={installApp}
-                variant="accent"
-                className="py-2 px-3 text-[9px] font-black uppercase tracking-wider shadow-md shadow-accent/20 shrink-0 bg-gradient-to-r from-accent via-primary to-accent border border-white/10"
+                className="py-2 px-3 text-[9px] font-black uppercase tracking-wider shadow-md shadow-accent/20 shrink-0 bg-gradient-to-r from-accent via-primary to-accent border border-white/10 rounded-xl text-white transition-all active:scale-95 z-20"
               >
                 Install App
-              </Button>
+              </button>
             </Glass>
           </motion.div>
         )}
