@@ -76,18 +76,51 @@ const MobileAiAssistant = () => {
       const systemPrompt = 'You are a friendly, expert AI Homework Helper and Study Companion for Filipino students. Give concise, clear, well-formatted educational answers. For Tagalog folk songs like Bahay Kubo, provide the complete lyrics. Use bullet points and numbered lists to organize answers.'
 
       const promptText = `System: ${systemPrompt}\nUser: ${text}`
-      const res = await fetch(`https://gen.pollinations.ai/text/${encodeURIComponent(promptText)}`, {
-        signal: AbortSignal.timeout(12000) // 12 second timeout
-      })
+      const encodedPrompt = encodeURIComponent(promptText)
 
-      if (res.ok) {
-        const raw = await res.text()
-        if (raw && raw.trim().length > 0) {
-          responseText = raw.trim()
-        } else {
+      // Layer 1: text.pollinations.ai
+      try {
+        const res = await fetch(`https://text.pollinations.ai/${encodedPrompt}`, { signal: AbortSignal.timeout(8000) })
+        if (res.ok) {
+          const raw = await res.text()
+          if (raw && raw.trim().length > 0) responseText = raw.trim()
+        }
+      } catch (err) {
+        console.warn('Chat Layer 1 failed, trying Layer 2...', err)
+      }
+
+      // Layer 2: gen.pollinations.ai
+      if (!responseText) {
+        try {
+          const res = await fetch(`https://gen.pollinations.ai/text/${encodedPrompt}`, { signal: AbortSignal.timeout(8000) })
+          if (res.ok) {
+            const raw = await res.text()
+            if (raw && raw.trim().length > 0) responseText = raw.trim()
+          }
+        } catch (err) {
+          console.warn('Chat Layer 2 failed, trying Layer 3 proxy...', err)
+        }
+      }
+
+      // Layer 3: AllOrigins CORS proxy
+      if (!responseText) {
+        try {
+          const targetUrl = `https://text.pollinations.ai/${encodedPrompt}`
+          const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`
+          const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) })
+          if (res.ok) {
+            const data = await res.json()
+            if (data && data.contents && data.contents.trim().length > 0) {
+              responseText = data.contents.trim()
+            }
+          }
+        } catch (err) {
+          console.error('Chat Layer 3 failed, using offline fallback:', err)
           responseText = getLocalResponse(text)
         }
-      } else {
+      }
+
+      if (!responseText) {
         responseText = getLocalResponse(text)
       }
     } catch {
