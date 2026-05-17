@@ -75,7 +75,7 @@ const MobileAiAssistant = () => {
     try {
       const systemPrompt = 'You are a friendly, expert AI Homework Helper and Study Companion for Filipino students. Give concise, clear, well-formatted educational answers. For Tagalog folk songs like Bahay Kubo, provide the complete lyrics. Use bullet points and numbered lists to organize answers.'
 
-      const res = await fetch('https://text.pollinations.ai/', {
+      const res = await fetch('https://gen.pollinations.ai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -84,22 +84,15 @@ const MobileAiAssistant = () => {
             { role: 'user', content: text }
           ],
           model: 'openai',
-          seed: Math.floor(Math.random() * 9999)
+          temperature: 0.7
         }),
         signal: AbortSignal.timeout(12000) // 12 second timeout
       })
 
       if (res.ok) {
-        const raw = await res.text()
-        // Filter out deprecation notices returned as body text
-        const isDeprecationNotice = raw.toLowerCase().includes('deprecated') ||
-          raw.toLowerCase().includes('pollinations legacy') ||
-          raw.toLowerCase().includes('enter.pollinations.ai') ||
-          raw.trim().startsWith('⚠') ||
-          raw.trim().startsWith('**IMPORTANT')
-
-        if (!isDeprecationNotice && raw.trim().length > 10) {
-          responseText = raw.trim()
+        const data = await res.json()
+        if (data && data.choices && data.choices[0] && data.choices[0].message) {
+          responseText = data.choices[0].message.content.trim()
         } else {
           responseText = getLocalResponse(text)
         }

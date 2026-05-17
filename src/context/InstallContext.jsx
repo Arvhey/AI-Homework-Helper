@@ -20,20 +20,31 @@ export const InstallProvider = ({ children }) => {
       setCanInstall(true)
     }
     window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
+
+    const installedHandler = () => {
+      setCanInstall(false)
+      setDeferredPrompt(null)
+      showToast('App installed successfully!', 'success')
+    }
+    window.addEventListener('appinstalled', installedHandler)
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler)
+      window.removeEventListener('appinstalled', installedHandler)
+    }
   }, [])
 
   const installApp = async () => {
-    // Detect mobile device
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-    
-    if (isMobile) {
-      // Do absolutely nothing on mobile
-      return
+    if (deferredPrompt) {
+      deferredPrompt.prompt()
+      const { outcome } = await deferredPrompt.userChoice
+      console.log(`PWA Installation outcome: ${outcome}`)
+      setDeferredPrompt(null)
+      setCanInstall(false)
+    } else {
+      // Fallback for simulation in dev environment
+      showToast('PWA installation triggered! (PWA install prompt is simulated in development)', 'success')
     }
-
-    // Always simulate/toast on desktop, do not trigger actual browser native prompt
-    showToast('PWA installation triggered! (PWA install prompt is simulated)', 'success')
   }
 
   return (

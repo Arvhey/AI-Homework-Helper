@@ -90,12 +90,49 @@ const Login = () => {
       </div>
 
       {/* Form Side */}
-      <div className="flex-1 flex items-center justify-center p-4 sm:p-8 md:p-12 relative overflow-hidden">
+      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 md:p-12 relative overflow-hidden">
         {/* Mobile Glows */}
         <div className="md:hidden absolute inset-0 z-0">
           <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/20 blur-[100px] rounded-full" />
           <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-secondary/10 blur-[100px] rounded-full" />
         </div>
+
+        {/* Mobile Install App Banner - OUTSIDE the login form, ONLY in login mode */}
+        {canInstall && mode === 'login' && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="md:hidden w-full max-w-md mb-5 z-20 px-1"
+          >
+            <Glass className="p-4 border-accent/20 bg-gradient-to-r from-accent/10 via-primary/5 to-transparent backdrop-blur-xl relative overflow-hidden flex items-center justify-between gap-4 shadow-lg shadow-accent/5 rounded-2xl">
+              {/* Decorative Glow */}
+              <div className="absolute top-0 right-0 w-24 h-24 bg-accent/20 blur-2xl rounded-full" />
+
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-primary flex items-center justify-center shadow-lg shadow-accent/25 shrink-0">
+                  <Download className="w-5 h-5 text-white animate-bounce" />
+                </div>
+                <div className="text-left">
+                  <h3 className="text-[11px] font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                    AI Homework Helper <Sparkles className="w-3 h-3 text-accent animate-pulse" />
+                  </h3>
+                  <p className="text-[9px] text-slate-400 font-semibold mt-0.5 leading-tight">
+                    Get Access & Fullscreen
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                onClick={installApp}
+                variant="accent"
+                className="py-2 px-3 text-[9px] font-black uppercase tracking-wider shadow-md shadow-accent/20 shrink-0 bg-gradient-to-r from-accent via-primary to-accent border border-white/10"
+              >
+                Install App
+              </Button>
+            </Glass>
+          </motion.div>
+        )}
 
         <AnimatePresence mode="wait">
           <motion.div
@@ -107,21 +144,6 @@ const Login = () => {
             className="w-full max-w-md relative z-10"
           >
             <Glass className="p-6 sm:p-8 border-white/20 bg-white/[0.02] backdrop-blur-2xl ring-1 ring-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)]">
-              {/* Mobile Install App Button with Download Icon at the Top */}
-              {canInstall && (
-                <div className="md:hidden mb-6">
-                  <Button
-                    type="button"
-                    onClick={installApp}
-                    variant="accent"
-                    className="w-full py-3.5 text-[10px] font-black uppercase tracking-widest shadow-xl shadow-accent/30 flex items-center justify-center gap-2 bg-gradient-to-r from-accent via-primary to-accent animate-gradient-x border border-white/10"
-                  >
-                    <Download className="w-4 h-4 animate-bounce" />
-                    Download & Install App
-                  </Button>
-                </div>
-              )}
-
               {/* Logo Section */}
               <div className="flex flex-col items-center mb-6">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center mb-3 shadow-xl">

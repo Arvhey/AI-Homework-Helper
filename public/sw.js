@@ -29,6 +29,9 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+  // Only handle GET requests to avoid Cache API method restrictions (e.g., HEAD, POST)
+  if (event.request.method !== 'GET') return;
+
   // Only intercept HTTP/HTTPS schemes (bypasses chrome-extension://, etc.)
   if (!event.request.url.startsWith('http')) return;
 

@@ -52,22 +52,24 @@ const QuizModal = ({ isOpen, onClose, quizData, onComplete }) => {
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-md"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm"
             onClick={onClose}
           />
-          
+
+          {/* Modal Card */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="w-full max-w-2xl z-10 p-4"
+            className="w-full max-w-2xl z-10"
           >
-            <Glass className="p-8 border-primary/20 shadow-2xl relative overflow-hidden">
+            <Glass className="p-6 md:p-8 border-primary/20 shadow-2xl relative flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden">
               {!showResult ? (
                 <>
                   {/* Progress Bar */}
@@ -79,81 +81,87 @@ const QuizModal = ({ isOpen, onClose, quizData, onComplete }) => {
                     />
                   </div>
 
-                  <div className="flex items-center justify-between mb-8">
-                    <span className="text-sm font-bold text-primary uppercase tracking-widest">
+                  <div className="flex items-center justify-between mb-4 md:mb-6 shrink-0">
+                    <span className="text-xs md:text-sm font-bold text-primary uppercase tracking-widest">
                       Question {currentQuestion + 1} of {quizData.length}
                     </span>
                     <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
-                      <X className="w-6 h-6" />
+                      <X className="w-5 h-5 md:w-6 md:h-6" />
                     </button>
                   </div>
 
-                  <h2 className="text-2xl font-bold text-white mb-8 leading-tight">
-                    {question.question}
-                  </h2>
+                  <div className="flex-1 overflow-y-auto pr-1 space-y-4 md:space-y-6 mb-4 scrollbar-thin">
+                    <h2 className="text-lg md:text-2xl font-bold text-white leading-tight">
+                      {question.question}
+                    </h2>
 
-                  <div className="space-y-4">
-                    {question.options.map((option, i) => {
-                      const isSelected = selectedAnswer === option
-                      const isCorrect = option === question.answer
-                      const isWrong = isSelected && !isCorrect
-                      
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => handleAnswerSelect(option)}
-                          disabled={!!selectedAnswer}
-                          className={cn(
-                            "w-full p-4 rounded-xl border text-left transition-all duration-300 flex items-center justify-between group",
-                            !selectedAnswer ? "bg-white/5 border-white/10 hover:bg-white/10 hover:border-primary/50" :
-                            isCorrect ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-500" :
-                            isWrong ? "bg-red-500/10 border-red-500/50 text-red-500" :
-                            "bg-white/5 border-white/10 opacity-50"
-                          )}
-                        >
-                          <span className="font-medium">{option}</span>
-                          {selectedAnswer && isCorrect && <CheckCircle2 className="w-5 h-5" />}
-                          {selectedAnswer && isWrong && <AlertCircle className="w-5 h-5" />}
-                        </button>
-                      )
-                    })}
+                    <div className="space-y-3 md:space-y-4">
+                      {question.options.map((option, i) => {
+                        const isSelected = selectedAnswer === option
+                        const isCorrect = option === question.answer
+                        const isWrong = isSelected && !isCorrect
+                        
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => handleAnswerSelect(option)}
+                            disabled={!!selectedAnswer}
+                            className={cn(
+                              "w-full p-3 md:p-4 rounded-xl border text-left transition-all duration-300 flex items-center justify-between group text-xs md:text-sm",
+                              !selectedAnswer ? "bg-white/5 border-white/10 hover:bg-white/10 hover:border-primary/50" :
+                              isCorrect ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-500" :
+                              isWrong ? "bg-red-500/10 border-red-500/50 text-red-500" :
+                              "bg-white/5 border-white/10 opacity-50"
+                            )}
+                          >
+                            <span className="font-medium">{option}</span>
+                            {selectedAnswer && isCorrect && <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 shrink-0 ml-2" />}
+                            {selectedAnswer && isWrong && <AlertCircle className="w-4 h-4 md:w-5 md:h-5 shrink-0 ml-2" />}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
 
-                  <div className="mt-8 flex justify-end">
+                  <div className="flex justify-end shrink-0 border-t border-white/5 pt-3 md:pt-4">
                     <Button 
                       variant="primary" 
                       onClick={handleNext}
                       disabled={!selectedAnswer}
-                      className="px-8"
+                      className="px-6 md:px-8 w-full sm:w-auto"
                     >
                       {currentQuestion === quizData.length - 1 ? 'Finish' : 'Next Question'}
-                      <ArrowRight className="w-5 h-5" />
+                      <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />
                     </Button>
                   </div>
                 </>
               ) : (
-                <div className="text-center py-8">
-                  <div className="w-24 h-24 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Trophy className="w-12 h-12 text-primary" />
-                  </div>
-                  <h2 className="text-3xl font-bold text-white mb-2">Quiz Completed!</h2>
-                  <p className="text-slate-400 mb-8">Great job! Here's how you performed:</p>
-                  
-                  <div className="grid grid-cols-2 gap-4 mb-8">
-                    <Glass className="p-6 bg-white/5">
-                      <div className="text-4xl font-black text-white mb-1">{score}/{quizData.length}</div>
-                      <div className="text-xs text-slate-500 uppercase font-bold tracking-widest">Final Score</div>
-                    </Glass>
-                    <Glass className="p-6 bg-white/5">
-                      <div className="text-4xl font-black text-primary mb-1">{Math.round((score/quizData.length)*100)}%</div>
-                      <div className="text-xs text-slate-500 uppercase font-bold tracking-widest">Accuracy</div>
-                    </Glass>
+                <>
+                  <div className="flex-1 overflow-y-auto pr-1 space-y-4 md:space-y-6 flex flex-col items-center justify-center py-4 scrollbar-thin">
+                    <div className="w-16 h-16 md:w-24 md:h-24 bg-primary/20 rounded-full flex items-center justify-center shrink-0">
+                      <Trophy className="w-8 h-8 md:w-12 md:h-12 text-primary" />
+                    </div>
+                    <h2 className="text-xl md:text-3xl font-bold text-white text-center">Quiz Completed!</h2>
+                    <p className="text-slate-400 text-xs md:text-sm text-center -mt-2">Great job! Here's how you performed:</p>
+                    
+                    <div className="grid grid-cols-2 gap-3 md:gap-4 w-full">
+                      <Glass className="p-4 md:p-6 bg-white/5 text-center">
+                        <div className="text-2xl md:text-4xl font-black text-white mb-1">{score}/{quizData.length}</div>
+                        <div className="text-[9px] md:text-xs text-slate-500 uppercase font-bold tracking-widest">Final Score</div>
+                      </Glass>
+                      <Glass className="p-4 md:p-6 bg-white/5 text-center">
+                        <div className="text-2xl md:text-4xl font-black text-primary mb-1">{Math.round((score/quizData.length)*100)}%</div>
+                        <div className="text-[9px] md:text-xs text-slate-500 uppercase font-bold tracking-widest">Accuracy</div>
+                      </Glass>
+                    </div>
                   </div>
 
-                  <Button variant="primary" className="w-full py-4 text-lg" onClick={handleFinish}>
-                    Close & Save Results
-                  </Button>
-                </div>
+                  <div className="mt-4 md:mt-6 w-full shrink-0 border-t border-white/5 pt-3 md:pt-4">
+                    <Button variant="primary" className="w-full py-3 md:py-4 text-sm md:text-lg" onClick={handleFinish}>
+                      Close & Save Results
+                    </Button>
+                  </div>
+                </>
               )}
             </Glass>
           </motion.div>
