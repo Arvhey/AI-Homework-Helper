@@ -97,18 +97,15 @@ export const aiService = {
 
     const prompt = [{ 
       role: 'user', 
-      content: `Generate exactly a ${targetCount}-question adaptive academic quiz about "${topic}". First, analyze the provided text. If the text explicitly contains Multiple Choice, Identification (direct single-answer/fill-in-the-blank), or Enumeration (listing multiple items) questions, you must follow and generate those EXACT questions, preserving their original styles and matching the total count. If the text is a general summary without explicit questions, generate a high-quality 10-question quiz blending these three types.
-
-You must respond ONLY with a raw JSON array of objects representing the quiz questions. Each object must have:
-1. 'question' (string): The text of the question.
-2. 'type' (string): Must be either 'multiple_choice', 'identification', or 'enumeration'.
-3. 'options' (array of strings, ONLY for 'multiple_choice'): Provide exactly 4 options. For other types, leave empty or omit.
-4. 'answer':
-   - For 'multiple_choice': A string matching exactly one of the 4 options.
-   - For 'identification': A string representing the correct direct answer (e.g., "Oxygen").
-   - For 'enumeration': An array of strings representing the correct items to list (e.g., ["Red", "White", "Blue"]).
-
-Do not include markdown codeblocks, do not include word wraps or text outside the JSON array.` 
+      content: `Generate exactly a ${targetCount}-question quiz about "${topic}". 
+      You must carefully analyze the content of the provided text:
+      1. If the text contains questions with options (e.g. A, B, C, D), format them as Multiple Choice and prefix the question text with "[Multiple Choice] ".
+      2. If the text asks to list items, steps, parts, or features, format them as Enumeration questions. Prefix the question text with "[Enumeration] " and let the 4 options represent different sets of lists, with the correct set of items as the answer.
+      3. If the text asks for direct terms, definitions, or fill-in-the-blanks, format them as Identification questions. Prefix the question text with "[Identification] " and let the 4 options represent terms, with the correct term as the answer.
+      
+      If the topic "${topic}" is extremely short, gibberish, or unclear, automatically generate a high-quality 10-question general knowledge academic study quiz about science, history, or mathematics, mixing "[Multiple Choice] ", "[Enumeration] ", and "[Identification] " prefixes.
+      
+      You must respond ONLY with a raw JSON array of objects containing 'question' (string, including the correct prefix), 'options' (array of 4 strings), and 'answer' (string matching exactly one of the options). Do not include markdown codeblocks or text outside the JSON array.` 
     }]
     
     let response = ""
@@ -127,8 +124,7 @@ Do not include markdown codeblocks, do not include word wraps or text outside th
       const cleanTopic = topic.length > 25 ? topic.substring(0, 25) + '...' : topic
       return [
         {
-          type: "multiple_choice",
-          question: `Which of the following is the most effective way to master the topic of "${cleanTopic}"?`,
+          question: `[Multiple Choice] Which of the following is the most effective way to master the topic of "${cleanTopic}"?`,
           options: [
             "Spaced repetition, active recall, and constant testing",
             "Reading the same study sheet repeatedly at night",
@@ -138,61 +134,69 @@ Do not include markdown codeblocks, do not include word wraps or text outside th
           answer: "Spaced repetition, active recall, and constant testing"
         },
         {
-          type: "multiple_choice",
-          question: "Why is taking custom quizzes highly recommended by cognitive science researchers?",
+          question: "[Identification] What is the primary term used for the brain's ability to retrieve information, strengthening synaptic connections?",
           options: [
-            "It forces the brain to retrieve information, strengthening synaptic paths",
-            "It allows students to finish homework assignments with zero effort",
-            "It eliminates the need to attend face-to-face classroom lectures",
-            "It automatically guarantees a 100% score on school board exams"
+            "Active Recall",
+            "Passive Reading",
+            "Information Overload",
+            "Cognitive Stagnation"
           ],
-          answer: "It forces the brain to retrieve information, strengthening synaptic paths"
+          answer: "Active Recall"
         },
         {
-          type: "multiple_choice",
-          question: "Which utility is built for robust, offline, distraction-free full screen studying?",
+          question: "[Enumeration] Which of the following correctly lists the three core study utilities of the AI Homework Helper PWA?",
           options: [
-            "The AI Homework Helper PWA Installed Companion",
-            "A standard browser window with multiple open tabs",
-            "A physical notebook catalog with missing pages",
-            "A static command line editor operating locally"
+            "AI Chat, Quiz Generator, and Notes Creator",
+            "File Uploader, Web Downloader, and Video Streamer",
+            "Code Compiler, Music Player, and Social Feed",
+            "Database Admin, Graph Designer, and Map Tracker"
           ],
-          answer: "The AI Homework Helper PWA Installed Companion"
+          answer: "AI Chat, Quiz Generator, and Notes Creator"
         },
         {
-          type: "identification",
-          question: "What is the primary gas found in Earth's atmosphere that is crucial for human breathing?",
+          question: "[Identification] What is the primary gas found in Earth's atmosphere that is crucial for human breathing?",
+          options: ["Nitrogen", "Oxygen", "Carbon Dioxide", "Hydrogen"],
           answer: "Oxygen"
         },
         {
-          type: "identification",
-          question: "In basic mathematics, what is the value of the mathematical constant Pi (rounded to two decimal places)?",
+          question: "[Multiple Choice] In basic mathematics, what is the value of the mathematical constant Pi (rounded to two decimal places)?",
+          options: ["3.14", "2.71", "1.61", "1.41"],
           answer: "3.14"
         },
         {
-          type: "identification",
-          question: "Which organ in the human body is primarily responsible for pumping oxygenated blood throughout the circulatory system?",
-          answer: "Heart"
+          question: "[Enumeration] Which of the following lists the primary organs in the human body responsible for breathing, thinking, and pumping blood?",
+          options: [
+            "Lungs, Brain, and Heart",
+            "Liver, Kidneys, and Stomach",
+            "Skin, Muscles, and Bones",
+            "Eyes, Ears, and Throat"
+          ],
+          answer: "Lungs, Brain, and Heart"
         },
         {
-          type: "identification",
-          question: "Who is traditionally known as the national hero of the Philippines?",
+          question: "[Identification] Who is traditionally known as the national hero of the Philippines?",
+          options: ["Jose Rizal", "Andres Bonifacio", "Emilio Aguinaldo", "Apolinario Mabini"],
           answer: "Jose Rizal"
         },
         {
-          type: "enumeration",
-          question: "Name the three colors present on the official flag of the Philippines.",
-          answer: ["Red", "White", "Blue"]
+          question: "[Multiple Choice] What is the closest celestial body that orbits the planet Earth?",
+          options: ["The Sun", "The Moon", "Mars", "Venus"],
+          answer: "The Moon"
         },
         {
-          type: "enumeration",
-          question: "List the primary two memory techniques recommended by cognitive scientists for high-fidelity exam recall.",
-          answer: ["Active Recall", "Spaced Repetition"]
+          question: "[Identification] Which primary scientific device is used to measure the exact temperature of a substance?",
+          options: ["Thermometer", "Barometer", "Anemometer", "Hygrometer"],
+          answer: "Thermometer"
         },
         {
-          type: "enumeration",
-          question: "Name the two primary celestial bodies in our solar system that directly influence ocean tides and daylight on Earth.",
-          answer: ["Sun", "Moon"]
+          question: "[Enumeration] What are the three primary states of natural matter found commonly on Earth?",
+          options: [
+            "Solid, Liquid, and Gas",
+            "Plasma, Ice, and Vapor",
+            "Metal, Stone, and Acid",
+            "Light, Heat, and Sound"
+          ],
+          answer: "Solid, Liquid, and Gas"
         }
       ]
     }
