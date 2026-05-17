@@ -50,16 +50,43 @@ const Quiz = () => {
   
   const [activeTab, setActiveTab] = useState('my-quizzes')
   const [quizHistory, setQuizHistory] = useState([])
+  const [savedNotes, setSavedNotes] = useState([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [topic, setTopic] = useState('')
+  const [selectedNoteId, setSelectedNoteId] = useState('')
   
   const [activeQuiz, setActiveQuiz] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   useEffect(() => {
-    if (user) fetchQuizHistory()
+    if (user) {
+      fetchQuizHistory()
+      fetchSavedNotes()
+    }
   }, [user])
+
+  const fetchSavedNotes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('notes')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      setSavedNotes(data || [])
+    } catch (e) {
+      console.error('Failed to load saved notes for quiz selection:', e)
+    }
+  }
+
+  const handleAttachSavedNote = (noteId) => {
+    const selectedNote = savedNotes.find(n => n.id === noteId || n.id.toString() === noteId.toString())
+    if (selectedNote) {
+      setTopic(`=== NOTE: ${selectedNote.title} ===\nCategory: ${selectedNote.category}\n\n${selectedNote.content}`)
+      setSelectedNoteId(noteId)
+      showToast(`Attached saved note: "${selectedNote.title}"!`, 'success')
+    }
+  }
 
   const fetchQuizHistory = async () => {
     try {
@@ -83,8 +110,16 @@ const Quiz = () => {
     try {
       const questions = await generateQuiz(topic)
       if (questions && questions.length > 0) {
-        const firstLine = topic.split('\n')[0].trim()
-        const cleanTitle = firstLine.length > 50 ? firstLine.substring(0, 50) + '...' : firstLine
+        // Dynamic title based on files loaded or general topic
+        let cleanTitle = 'Custom Study Quiz'
+        if (topic.includes('=== FILE:')) {
+          const fileMatch = topic.match(/=== FILE: (.*?) ===/)
+          if (fileMatch) cleanTitle = `Quiz: ${fileMatch[1]}`
+        } else {
+          const firstLine = topic.split('\n')[0].trim()
+          cleanTitle = firstLine.length > 40 ? firstLine.substring(0, 40) + '...' : firstLine
+        }
+        
         setActiveQuiz({ title: cleanTitle, questions })
         setIsModalOpen(true)
       } else {
@@ -189,47 +224,59 @@ const Quiz = () => {
   }
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
+    const files = Array.from(e.target.files)
+    if (files.length === 0) return
 
-    const extension = file.name.split('.').pop().toLowerCase()
-    showToast(`Reading ${file.name}...`, 'info')
+    showToast(`Reading ${files.length} file(s)...`, 'info')
+    
+    let combinedText = ''
+    let loadedCount = 0
+    
+    for (const file of files) {
+      const extension = file.name.split('.').pop().toLowerCase()
+      try {
+        let extractedText = ''
+        if (extension === 'pdf') {
+          extractedText = await extractPdfText(file)
+        } else if (extension === 'docx') {
+          extractedText = await extractDocxText(file)
+        } else {
+          extractedText = await new Promise((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = (evt) => resolve(evt.target.result)
+            reader.onerror = () => reject(new Error('Failed to read file'))
+            reader.readAsText(file)
+          })
+        }
 
-    try {
-      let extractedText = ''
-      if (extension === 'pdf') {
-        extractedText = await extractPdfText(file)
-      } else if (extension === 'docx') {
-        extractedText = await extractDocxText(file)
-      } else {
-        extractedText = await new Promise((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = (evt) => resolve(evt.target.result)
-          reader.onerror = () => reject(new Error('Failed to read file'))
-          reader.readAsText(file)
-        })
+        if (extractedText && extractedText.trim().length > 10) {
+          combinedText += `\n\n=== FILE: ${file.name} ===\n${extractedText}`
+          loadedCount++
+        }
+      } catch (err) {
+        console.error(err)
+        showToast(`Error reading ${file.name}: ${err.message}`, 'error')
       }
+    }
 
-      if (extractedText && extractedText.trim().length > 10) {
-        setTopic(extractedText)
-        showToast(`${file.name} loaded successfully!`, 'success')
-      } else {
-        showToast('Successfully read file, but no text content was found.', 'warning')
-      }
-    } catch (err) {
-      console.error(err)
-      showToast(`Error reading document: ${err.message}`, 'error')
+    if (combinedText.trim().length > 10) {
+      setTopic(combinedText.trim())
+      setSelectedNoteId('')
+      showToast(`Successfully loaded ${loadedCount} out of ${files.length} file(s)!`, 'success')
+    } else {
+      showToast('No text content was found in any of the uploaded files.', 'warning')
     }
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-32">
       <input 
         type="file" 
         ref={fileInputRef} 
         onChange={handleFileUpload} 
         className="hidden" 
         accept=".txt,.js,.py,.md,.html,.css,.json,.pdf,.docx"
+        multiple
       />
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -239,7 +286,7 @@ const Quiz = () => {
       </div>
 
       {/* AI Generator Card */}
-      <Glass className="p-8 bg-gradient-to-br from-primary/10 via-accent/10 to-transparent border-primary/20 relative overflow-hidden group">
+      <Glass className="p-5 md:p-8 bg-gradient-to-br from-primary/10 via-accent/10 to-transparent border-primary/20 relative overflow-hidden group">
         <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
           <Brain className="w-48 h-48 text-white rotate-12" />
         </div>
@@ -248,20 +295,66 @@ const Quiz = () => {
           <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
             {t('ai_magic')} ✨
           </h2>
-          <p className="text-slate-300 mb-8 text-lg">
+          <p className="text-slate-300 mb-6 text-sm md:text-lg">
             {t('ai_magic_desc')}
           </p>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div 
-              onClick={() => fileInputRef.current.click()}
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-slate-400 flex items-center gap-3 cursor-pointer hover:bg-white/10 transition-all overflow-hidden"
-            >
-              <Paperclip className="w-5 h-5 shrink-0" />
-              <span className="truncate">{topic ? (topic.length > 30 ? topic.substring(0, 30) + '...' : topic) : t('attach_notes')}</span>
+          <div className="flex flex-col md:flex-row gap-4 items-stretch">
+            {/* File Uploader */}
+            <div className="flex gap-2 w-full md:flex-1">
+              <div 
+                onClick={() => fileInputRef.current.click()}
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-slate-400 flex items-center gap-3 cursor-pointer hover:bg-white/10 transition-all overflow-hidden h-[48px]"
+              >
+                <Paperclip className="w-5 h-5 shrink-0" />
+                <span className="truncate text-xs md:text-sm">
+                  {topic ? (
+                    topic.startsWith('=== NOTE:') ? (
+                      `📋 Note: ${topic.match(/=== NOTE: (.*?) ===/)?.[1] || 'Attached Note'}`
+                    ) : topic.includes('=== FILE:') ? (
+                      `📁 Attached ${topic.split('=== FILE:').length - 1} File(s)`
+                    ) : (
+                      topic.length > 30 ? topic.substring(0, 30) + '...' : topic
+                    )
+                  ) : t('attach_notes')}
+                </span>
+              </div>
+              
+              {topic && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTopic('')
+                    setSelectedNoteId('')
+                    showToast('Attachment cleared!', 'info')
+                  }}
+                  className="p-3 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 text-red-400 rounded-xl transition-all flex items-center justify-center shrink-0 w-[48px] h-[48px]"
+                  title="Clear attachment"
+                >
+                  <span className="text-sm font-bold">✕</span>
+                </button>
+              )}
             </div>
+
+            {/* Saved Notes Dropdown Selector */}
+            {savedNotes.length > 0 && (
+              <select
+                value={selectedNoteId}
+                onChange={(e) => handleAttachSavedNote(e.target.value)}
+                className="w-full md:w-auto bg-[#0a0e1a] border border-white/10 rounded-xl px-4 py-3 text-xs md:text-sm text-white outline-none focus:border-primary/50 transition-all cursor-pointer md:min-w-[220px] h-[48px]"
+              >
+                <option value="" disabled>📋 Select from My Notes...</option>
+                {savedNotes.map(note => (
+                  <option key={note.id} value={note.id}>
+                    {note.title} ({note.category})
+                  </option>
+                ))}
+              </select>
+            )}
+            
+            {/* Action Button */}
             <Button 
               variant="primary" 
-              className="px-8 shadow-xl shadow-primary/40 text-lg"
+              className="w-full md:w-auto px-8 shadow-xl shadow-primary/40 text-sm md:text-lg shrink-0 h-[48px] flex items-center justify-center"
               onClick={handleGenerate}
               disabled={generating}
             >

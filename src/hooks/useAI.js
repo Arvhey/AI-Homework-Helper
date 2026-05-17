@@ -21,10 +21,10 @@ export const useAI = () => {
     }
   }
 
-  const generateQuiz = async (content) => {
+  const generateQuiz = async (content, targetCount) => {
     setIsGenerating(true)
     try {
-      const quiz = await aiService.generateQuiz(content)
+      const quiz = await aiService.generateQuiz(content, targetCount)
       return quiz
     } catch (err) {
       setError(err.message)
@@ -47,5 +47,18 @@ export const useAI = () => {
     }
   }
 
-  return { askAI, generateQuiz, summarize, loading: isGenerating, error }
+  const generateFlashcards = async (content) => {
+    setIsGenerating(true)
+    try {
+      const flashcards = await aiService.generateFlashcards(content)
+      return flashcards
+    } catch (err) {
+      setError(err.message)
+      return null
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  return { askAI, generateQuiz, summarize, generateFlashcards, loading: isGenerating, error }
 }

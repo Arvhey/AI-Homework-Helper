@@ -13,10 +13,12 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  body {
+  html, body {
     @apply bg-[#0f172a] selection:bg-primary/30;
     font-family: 'Century Gothic', 'AppleGothic', sans-serif;
     -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
+    max-width: 100vw;
   }
 
   h1, h2, h3, h4, h5, h6 {

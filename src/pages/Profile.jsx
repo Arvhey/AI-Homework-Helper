@@ -12,7 +12,13 @@ import {
   Star,
   Award,
   ChevronRight,
-  Loader2
+  Loader2,
+  Compass,
+  Trophy,
+  BookOpen,
+  Clock,
+  Zap,
+  GraduationCap
 } from 'lucide-react'
 import Glass from '../components/ui/Glass'
 import Button from '../components/ui/Button'
@@ -23,6 +29,8 @@ import { useToast } from '../hooks/useToast'
 import Skeleton from '../components/ui/Skeleton'
 import EditProfileModal from '../components/profile/EditProfileModal'
 import SettingsModal from '../components/profile/SettingsModal'
+import SecurityModal from '../components/profile/SecurityModal'
+import BillingModal from '../components/profile/BillingModal'
 import { useLanguage } from '../context/LanguageContext'
 
 const ProfileSkeleton = () => (
@@ -59,9 +67,12 @@ const Profile = () => {
   const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState(null)
-  const [stats, setStats] = useState({ quizzes: 0, notes: 0, xp: 0 })
+  const [stats, setStats] = useState({ quizzes: 0, notes: 0, xp: 0, focusSessions: 0, focusMinutes: 0 })
+  const [activeTooltip, setActiveTooltip] = useState(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false)
+  const [isBillingModalOpen, setIsBillingModalOpen] = useState(false)
   const [isActionsOpen, setIsActionsOpen] = useState(false)
 
   const [uploading, setUploading] = useState(false)
@@ -138,15 +149,25 @@ const Profile = () => {
       if (profileError) throw profileError
       setProfile(profileData)
 
-      const [quizRes, noteRes] = await Promise.all([
-        supabase.from('quizzes').select('id', { count: 'exact' }).eq('user_id', user.id),
-        supabase.from('notes').select('id', { count: 'exact' }).eq('user_id', user.id)
+      // Fetch Quizzes, Notes, and Study Sessions in parallel
+      const [quizRes, noteRes, sessionRes] = await Promise.all([
+        supabase.from('quizzes').select('score').eq('user_id', user.id),
+        supabase.from('notes').select('id').eq('user_id', user.id),
+        supabase.from('study_sessions').select('duration').eq('user_id', user.id)
       ])
 
+      const totalQuizzes = quizRes.data?.length || 0
+      const totalNotes = noteRes.data?.length || 0
+      const totalXP = quizRes.data?.reduce((acc, q) => acc + (q.score || 0), 0) * 10 || 0
+      const totalSessions = sessionRes.data?.length || 0
+      const totalMinutes = sessionRes.data?.reduce((acc, s) => acc + (s.duration || 0), 0) || 0
+
       setStats({
-        quizzes: quizRes.count || 0,
-        notes: noteRes.count || 0,
-        xp: (quizRes.count || 0) * 100
+        quizzes: totalQuizzes,
+        notes: totalNotes,
+        xp: totalXP,
+        focusSessions: totalSessions,
+        focusMinutes: totalMinutes
       })
     } catch (error) {
       console.error('Error fetching profile:', error)
@@ -163,6 +184,81 @@ const Profile = () => {
       showToast(t('error'), 'error')
     }
   }
+
+  const badgeDefinitions = [
+    {
+      id: 1,
+      name: 'Quiz Explorer 🧭',
+      desc: 'Complete your first study quiz to start exploring concepts.',
+      target: 1,
+      current: stats.quizzes,
+      isUnlocked: stats.quizzes >= 1,
+      icon: Compass,
+      color: 'from-blue-500/10 via-indigo-500/5 to-transparent border-blue-500/20 text-blue-400',
+      iconColor: 'text-blue-400',
+      progressText: `${stats.quizzes} / 1 Quiz`
+    },
+    {
+      id: 2,
+      name: 'Quiz Master 🏆',
+      desc: 'Complete at least 5 study quizzes with stellar academic effort.',
+      target: 5,
+      current: stats.quizzes,
+      isUnlocked: stats.quizzes >= 5,
+      icon: Trophy,
+      color: 'from-yellow-500/10 via-orange-500/5 to-transparent border-yellow-500/20 text-yellow-400',
+      iconColor: 'text-yellow-400',
+      progressText: `${stats.quizzes} / 5 Quizzes`
+    },
+    {
+      id: 3,
+      name: 'Note Scholar 📝',
+      desc: 'Create at least 3 custom study notes to structure your study files.',
+      target: 3,
+      current: stats.notes,
+      isUnlocked: stats.notes >= 3,
+      icon: BookOpen,
+      color: 'from-emerald-500/10 via-teal-500/5 to-transparent border-emerald-500/20 text-emerald-400',
+      iconColor: 'text-emerald-400',
+      progressText: `${stats.notes} / 3 Notes`
+    },
+    {
+      id: 4,
+      name: 'Focus Warrior ⏱️',
+      desc: 'Complete your first focused study session with the Pomodoro timer.',
+      target: 1,
+      current: stats.focusSessions,
+      isUnlocked: stats.focusSessions >= 1,
+      icon: Clock,
+      color: 'from-purple-500/10 via-pink-500/5 to-transparent border-purple-500/20 text-purple-400',
+      iconColor: 'text-purple-400',
+      progressText: `${stats.focusSessions} / 1 Session`
+    },
+    {
+      id: 5,
+      name: 'XP Champion ⚡',
+      desc: 'Accumulate a total of 200 study XP by dominating homework helper tasks.',
+      target: 200,
+      current: stats.xp,
+      isUnlocked: stats.xp >= 200,
+      icon: Zap,
+      color: 'from-orange-500/10 via-red-500/5 to-transparent border-orange-500/20 text-orange-400',
+      iconColor: 'text-orange-400',
+      progressText: `${stats.xp} / 200 XP`
+    },
+    {
+      id: 6,
+      name: 'Elite Scholar 🎓',
+      desc: 'Earn 500 XP to establish elite status and academic intelligence.',
+      target: 500,
+      current: stats.xp,
+      isUnlocked: stats.xp >= 500,
+      icon: GraduationCap,
+      color: 'from-amber-500/10 via-yellow-600/5 to-transparent border-amber-500/20 text-amber-400',
+      iconColor: 'text-amber-400',
+      progressText: `${stats.xp} / 500 XP`
+    }
+  ]
 
   if (loading) return <ProfileSkeleton />
 
@@ -306,42 +402,106 @@ const Profile = () => {
       </Glass>
 
       <div className="grid md:grid-cols-2 gap-8">
-        <Glass className="p-8 border-white/5">
-          <h2 className="text-xl font-black text-white mb-8 flex items-center gap-2 uppercase tracking-tight">
-            <Award className="w-6 h-6 text-yellow-500" />
-            {t('badges')}
-          </h2>
-          <div className="grid grid-cols-3 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="aspect-square rounded-2xl bg-white/[0.02] border border-white/10 flex items-center justify-center group cursor-help hover:bg-white/5 transition-all">
-                <Award className={cn(
-                  "w-10 h-10 transition-all duration-500 group-hover:rotate-12",
-                  i <= (stats.quizzes > 0 ? 3 : 1) ? "text-yellow-500 drop-shadow-[0_0_15px_rgba(234,179,8,0.4)]" : "text-slate-700 grayscale"
-                )} />
-              </div>
-            ))}
+        <Glass className="p-4 md:p-6 lg:p-8 border-white/5 flex flex-col justify-between gap-6">
+          <div>
+            <h2 className="text-lg md:text-xl font-black text-white mb-4 md:mb-6 flex items-center gap-2 uppercase tracking-tight">
+              <Award className="w-5 h-5 md:w-6 md:h-6 text-yellow-500 animate-bounce" />
+              {t('badges')}
+            </h2>
+            <div className="grid grid-cols-3 gap-4">
+              {badgeDefinitions.map((b) => {
+                const IconComponent = b.icon
+                return (
+                  <div 
+                    key={b.id} 
+                    onClick={() => setActiveTooltip(b)}
+                    onMouseEnter={() => setActiveTooltip(b)}
+                    className={cn(
+                      "aspect-square rounded-2xl border flex flex-col items-center justify-center group cursor-pointer transition-all duration-300 relative",
+                      b.isUnlocked 
+                        ? cn("bg-gradient-to-br border-white/10 hover:border-white/20 shadow-lg shadow-black/20", b.color) 
+                        : "bg-white/[0.01] border-white/5 hover:border-white/10 opacity-30 grayscale"
+                    )}
+                  >
+                    <IconComponent className={cn(
+                      "w-8 h-8 transition-all duration-500 group-hover:scale-110 group-hover:rotate-6",
+                      b.isUnlocked ? b.iconColor : "text-slate-600"
+                    )} />
+                    {b.isUnlocked && (
+                      <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]" />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
+
+          {/* Interactive Badges Detail Panel */}
+          <Glass className="p-4 bg-white/[0.02] border-white/5 rounded-2xl min-h-[110px] flex flex-col justify-center">
+            {activeTooltip ? (
+              <motion.div 
+                key={activeTooltip.id}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="font-bold text-white text-sm md:text-base flex items-center gap-2">
+                    {activeTooltip.name}
+                    {activeTooltip.isUnlocked ? (
+                      <span className="text-[9px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full border border-emerald-400/20">Unlocked 🎉</span>
+                    ) : (
+                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">Locked 🔒</span>
+                    )}
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-400 bg-white/5 px-2 py-0.5 rounded-full">
+                    {activeTooltip.progressText}
+                  </div>
+                </div>
+                <p className="text-slate-400 text-xs leading-normal">{activeTooltip.desc}</p>
+                
+                {/* Visual Progress Bar */}
+                <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden mt-2">
+                  <div 
+                    className={cn(
+                      "h-full rounded-full transition-all duration-500",
+                      activeTooltip.isUnlocked ? "bg-gradient-to-r from-emerald-500 to-teal-400" : "bg-primary"
+                    )}
+                    style={{ width: `${Math.min(100, (activeTooltip.current / activeTooltip.target) * 100)}%` }}
+                  />
+                </div>
+              </motion.div>
+            ) : (
+              <div className="text-center text-slate-500 text-xs md:text-sm py-4">
+                💡 Hover or tap any badge to view its unlock status and progress details!
+              </div>
+            )}
+          </Glass>
         </Glass>
 
         <div className="space-y-6">
-          <Glass className="p-6 space-y-2 border-white/5">
-            <h2 className="text-xl font-black text-white mb-6 px-4 uppercase tracking-tight">{t('my_profile')}</h2>
+          <Glass className="p-4 md:p-6 space-y-1.5 border-white/5">
+            <h2 className="text-lg md:text-xl font-black text-white mb-4 md:mb-6 px-2 md:px-4 uppercase tracking-tight">{t('my_profile')}</h2>
             {[
-              { label: 'Security', icon: Shield, desc: 'Passwords & 2FA' },
-              { label: 'Billing', icon: CreditCard, desc: 'Manage subscription' },
-              { label: 'Preferences', icon: Settings, desc: 'Theme & Language' },
+              { label: 'Security', icon: Shield, desc: 'Passwords & 2FA', action: () => setIsSecurityModalOpen(true) },
+              { label: 'Billing', icon: CreditCard, desc: 'Manage subscription', action: () => setIsBillingModalOpen(true) },
+              { label: 'Preferences', icon: Settings, desc: 'Theme & Language', action: () => setIsSettingsModalOpen(true) },
             ].map((item) => (
-              <button key={item.label} className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-white/5 transition-all group">
-                <div className="flex items-center gap-4">
-                  <div className="p-2.5 rounded-xl bg-white/5 group-hover:bg-primary/20 transition-all duration-300">
-                    <item.icon className="w-5 h-5 text-slate-500 group-hover:text-primary transition-colors" />
+              <button 
+                key={item.label} 
+                onClick={item.action}
+                className="w-full flex items-center justify-between p-3 md:p-4 rounded-2xl hover:bg-white/5 transition-all group"
+              >
+                <div className="flex items-center gap-3 md:gap-4 min-w-0">
+                  <div className="p-2 md:p-2.5 rounded-xl bg-white/5 group-hover:bg-primary/20 transition-all duration-300 shrink-0">
+                    <item.icon className="w-4 h-4 md:w-5 md:h-5 text-slate-500 group-hover:text-primary transition-colors" />
                   </div>
-                  <div className="text-left">
-                    <div className="font-bold text-white group-hover:text-primary transition-colors">{item.label}</div>
-                    <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{item.desc}</div>
+                  <div className="text-left min-w-0">
+                    <div className="font-bold text-white text-xs md:text-sm group-hover:text-primary transition-colors truncate">{item.label}</div>
+                    <div className="text-[9px] md:text-[10px] text-slate-500 uppercase font-bold tracking-wider truncate">{item.desc}</div>
                   </div>
                 </div>
-                <ChevronRight className="w-5 h-5 text-slate-700 group-hover:text-white transition-all transform group-hover:translate-x-1" />
+                <ChevronRight className="w-4 h-4 md:w-5 md:h-5 text-slate-700 group-hover:text-white transition-all transform group-hover:translate-x-1 shrink-0" />
               </button>
             ))}
           </Glass>
@@ -366,6 +526,14 @@ const Profile = () => {
       <SettingsModal 
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
+      />
+      <SecurityModal 
+        isOpen={isSecurityModalOpen}
+        onClose={() => setIsSecurityModalOpen(false)}
+      />
+      <BillingModal 
+        isOpen={isBillingModalOpen}
+        onClose={() => setIsBillingModalOpen(false)}
       />
     </div>
   )

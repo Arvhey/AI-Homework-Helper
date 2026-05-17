@@ -9,7 +9,7 @@ import { useLanguage } from '../../context/LanguageContext'
 const MobileBottomNav = () => {
   const { t } = useLanguage()
 
-  // Pick 7 essential items for mobile bottom nav
+  // Pick all 7 items with ultra-responsive spacing to prevent overflow
   const mobileItems = [
     NAV_ITEMS[2], // Notes
     NAV_ITEMS[3], // Quiz
@@ -21,7 +21,7 @@ const MobileBottomNav = () => {
   ]
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-dark-bg/95 backdrop-blur-3xl border-t border-white/10 px-1 flex items-center justify-between z-50 pb-safe">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-dark-bg/95 backdrop-blur-3xl border-t border-white/10 px-0.5 flex items-center justify-between z-50 pb-safe">
       {mobileItems.map((item, index) => {
         const isHome = item.label === 'Home'
         
@@ -30,9 +30,9 @@ const MobileBottomNav = () => {
             key={item.path}
             to={item.path}
             className={({ isActive }) => cn(
-              "flex-1 flex flex-col items-center justify-center transition-all duration-300 relative",
+              "flex-1 flex flex-col items-center justify-center transition-all duration-300 relative min-w-0",
               isActive ? "text-primary" : "text-slate-400",
-              isHome ? "z-20 -mt-8" : "z-10"
+              isHome ? "z-20 -mt-6 md:-mt-8" : "z-10"
             )}
           >
             {({ isActive }) => (
@@ -40,15 +40,15 @@ const MobileBottomNav = () => {
                 <div className={cn(
                   "flex items-center justify-center transition-all duration-500",
                   isHome 
-                    ? "w-14 h-14 rounded-full bg-primary text-white shadow-[0_8px_25px_rgba(99,102,241,0.5)] border-4 border-[#0f172a] scale-110" 
-                    : "p-1.5 rounded-lg",
+                    ? "w-11 h-11 md:w-14 md:h-14 rounded-full bg-primary text-white shadow-[0_8px_25px_rgba(99,102,241,0.5)] border-4 border-[#0f172a] scale-110" 
+                    : "p-1 md:p-1.5 rounded-lg",
                   isActive && !isHome ? "bg-primary/10" : ""
                 )}>
-                  <item.icon className={cn(isHome ? "w-7 h-7" : "w-5 h-5")} />
+                  <item.icon className={cn(isHome ? "w-5 h-5 md:w-7 h-7" : "w-4 h-4 md:w-5 h-5")} />
                 </div>
                 
                 {!isHome && (
-                  <span className="text-[8px] font-bold uppercase tracking-tighter mt-1 text-center opacity-80">
+                  <span className="text-[7px] md:text-[8px] font-black uppercase tracking-tighter mt-1 text-center opacity-80 max-w-full truncate px-0.5">
                     {t(item.label.toLowerCase())}
                   </span>
                 )}

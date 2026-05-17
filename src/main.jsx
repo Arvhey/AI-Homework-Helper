@@ -7,11 +7,12 @@ import { InstallProvider } from './context/InstallContext'
 import { AIProvider } from './context/AIContext'
 import { ToastProvider } from './context/ToastContext'
 import { LanguageProvider } from './context/LanguageContext'
+import { AlarmProvider } from './context/AlarmContext'
 import App from './App.jsx'
 import './index.css'
 
 // Programmatic Cache-Busting and Service Worker upgrade hook
-const APP_VERSION = 'v1.1.0'
+const APP_VERSION = 'v1.1.4'
 if (localStorage.getItem('app_build_version') !== APP_VERSION) {
   localStorage.setItem('app_build_version', APP_VERSION)
   if ('caches' in window) {
@@ -40,11 +41,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <AuthProvider>
           <AIProvider>
             <ToastProvider>
-              <LanguageProvider>
-                <InstallProvider>
-                  <App />
-                </InstallProvider>
-              </LanguageProvider>
+              <AlarmProvider>
+                <LanguageProvider>
+                  <InstallProvider>
+                    <App />
+                  </InstallProvider>
+                </LanguageProvider>
+              </AlarmProvider>
             </ToastProvider>
           </AIProvider>
         </AuthProvider>

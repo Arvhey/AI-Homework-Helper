@@ -1,19 +1,71 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Settings, Bell, Volume2, Moon, Sparkles } from 'lucide-react'
 import Glass from '../ui/Glass'
 import Button from '../ui/Button'
+import { useToast } from '../../hooks/useToast'
+import { useAlarm } from '../../context/AlarmContext'
 
 const SettingsModal = ({ isOpen, onClose }) => {
-  const [settings, setSettings] = useState({
-    notifications: true,
-    sound: true,
-    darkMode: true,
-    aiSuggestions: true
+  const { showToast } = useToast()
+  const { triggerAlarm } = useAlarm()
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem('app_settings')
+    return saved ? JSON.parse(saved) : {
+      notifications: false,
+      sound: true,
+      darkMode: true,
+      aiSuggestions: true
+    }
   })
 
-  const toggleSetting = (key) => {
-    setSettings(prev => ({ ...prev, [key]: !prev[key] }))
+  // Sync settings state to localStorage on modification
+  useEffect(() => {
+    localStorage.setItem('app_settings', JSON.stringify(settings))
+  }, [settings])
+
+  const toggleSetting = async (key) => {
+    if (key === 'notifications') {
+      const isCurrentlyEnabled = settings.notifications
+      
+      if (!isCurrentlyEnabled) {
+        if (!('Notification' in window)) {
+          showToast('This browser does not support desktop push notifications.', 'error')
+          return
+        }
+
+        try {
+          const permission = await Notification.requestPermission()
+          if (permission === 'granted') {
+            setSettings(prev => ({ ...prev, notifications: true }))
+            new Notification("Intelligence Hub Active 🧠", {
+              body: "Awesome study alerts and live leaderboard rankings are active!",
+              icon: "/favicon.ico"
+            })
+            showToast('Push Notifications enabled successfully! 🔔', 'success')
+          } else {
+            showToast('Permission denied. Please enable notifications in your browser settings!', 'error')
+          }
+        } catch (err) {
+          console.error(err)
+          showToast('Failed to request notification permission.', 'error')
+        }
+      } else {
+        setSettings(prev => ({ ...prev, notifications: false }))
+        showToast('Push Notifications turned off.', 'info')
+      }
+    } else {
+      setSettings(prev => {
+        const newValue = !prev[key]
+        let message = ''
+        if (key === 'sound') message = newValue ? 'Sound effects enabled! 🔊' : 'Sound effects muted. 🔇'
+        if (key === 'darkMode') message = newValue ? 'Deep Dark Mode active! 🌙' : 'Light Theme enabled!'
+        if (key === 'aiSuggestions') message = newValue ? 'AI Insights unlocked! ⚡' : 'AI Insights paused.'
+        
+        showToast(message, 'success')
+        return { ...prev, [key]: newValue }
+      })
+    }
   }
 
   return (
@@ -74,7 +126,21 @@ const SettingsModal = ({ isOpen, onClose }) => {
                 ))}
               </div>
 
-              <div className="mt-8 pt-6 border-t border-white/10">
+              <div className="mt-8 pt-6 border-t border-white/10 flex flex-col gap-3">
+                <Button 
+                  variant="glass" 
+                  className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-black uppercase text-[10px] tracking-wider flex items-center justify-center gap-2"
+                  onClick={() => {
+                    onClose()
+                    triggerAlarm(
+                      "🚨 CRITICAL STUDY EMERGENCY!",
+                      "Test alarm triggered! On a physical mobile phone, your camera LED is now strobing continuously! Use stop or snooze to control."
+                    )
+                  }}
+                >
+                  🚨 Test Emergency Alarm & Flash
+                </Button>
+
                 <Button variant="primary" className="w-full" onClick={onClose}>
                   Done
                 </Button>

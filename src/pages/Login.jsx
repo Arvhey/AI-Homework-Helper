@@ -23,6 +23,29 @@ const Login = () => {
   })
   const [loading, setLoading] = React.useState(false)
 
+  // Loading Splash Screen State (Desktop & Mobile)
+  const [showSplash, setShowSplash] = React.useState(true)
+  const [splashStep, setSplashStep] = React.useState('first') // 'first' or 'second'
+
+  React.useEffect(() => {
+    if (showSplash) {
+      // Step 1: Counter-clockwise spinner for the first 1.5 seconds
+      const stepTimer = setTimeout(() => {
+        setSplashStep('second')
+      }, 1500)
+
+      // Step 2: Fade out splash and show login form at 3 seconds
+      const closeTimer = setTimeout(() => {
+        setShowSplash(false)
+      }, 3000)
+
+      return () => {
+        clearTimeout(stepTimer)
+        clearTimeout(closeTimer)
+      }
+    }
+  }, [showSplash])
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -55,6 +78,83 @@ const Login = () => {
         setMode('login')
       }
     }
+  }
+
+  if (showSplash) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center relative overflow-hidden px-4 select-none">
+        {/* Decorative Blur Glows */}
+        <div className="absolute inset-0 z-0">
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-primary/20 blur-[120px] rounded-full animate-pulse" />
+          <div className="absolute bottom-1/3 left-1/2 -translate-x-1/2 translate-y-1/2 w-72 h-72 bg-accent/15 blur-[120px] rounded-full" />
+        </div>
+
+        <div className="relative z-10 flex flex-col items-center justify-center text-center space-y-6">
+          {/* Dual-Rotating Concentric Spinners */}
+          <div className="relative w-36 h-36 flex items-center justify-center">
+            {/* Spinner 1: Outer Ring (Solid, Rotating Clockwise, active immediately) */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, rotate: 0 }}
+              animate={{ 
+                opacity: 1, 
+                scale: 1,
+                rotate: 360
+              }}
+              transition={{ 
+                opacity: { duration: 0.5 },
+                scale: { duration: 0.5 },
+                rotate: { repeat: Infinity, duration: 1.8, ease: 'linear' }
+              }}
+              className="absolute inset-0 rounded-full border-[5px] border-t-primary border-r-transparent border-b-primary/20 border-l-transparent"
+            />
+
+            {/* Spinner 2: Inner Ring (Dashed, Rotating Counter-Clockwise, active immediately) */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.6, rotate: 0 }}
+              animate={{ 
+                opacity: 1, 
+                scale: 0.8,
+                rotate: -360
+              }}
+              transition={{ 
+                opacity: { duration: 0.5 },
+                scale: { duration: 0.5 },
+                rotate: { repeat: Infinity, duration: 1.2, ease: 'linear' }
+              }}
+              className="absolute inset-0 rounded-full border-[4px] border-dashed border-t-accent border-r-transparent border-b-accent/30 border-l-transparent"
+            />
+
+            {/* Central Gentle Float Icon */}
+            <motion.div
+              animate={{ y: [0, -8, 0] }}
+              transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+              className="w-18 h-18 rounded-[24px] bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-2xl shadow-primary/30 relative z-10"
+            >
+              <GraduationCap className="text-white w-9 h-9" />
+            </motion.div>
+          </div>
+
+          {/* Core Brand Title and Loading Steps */}
+          <div className="space-y-2">
+            <motion.h2 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-2xl font-black text-white tracking-tight"
+            >
+              AI Homework Helper
+            </motion.h2>
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="text-slate-500 font-bold text-[9px] uppercase tracking-[0.25em] h-4"
+            >
+              {splashStep === 'first' ? 'Loading Study Modules...' : 'Configuring Intelligence Hub...'}
+            </motion.p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

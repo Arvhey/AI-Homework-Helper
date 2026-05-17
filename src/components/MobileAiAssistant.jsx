@@ -1,24 +1,230 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bot, X, Send, Sparkles, Brain, GraduationCap } from 'lucide-react'
+import { Bot, X, Send, Sparkles, Brain, GraduationCap, Paperclip, Trash2, History, Plus, Edit2 } from 'lucide-react'
 import Glass from './ui/Glass'
 import Button from './ui/Button'
 import { useToast } from '../hooks/useToast'
 
 const MobileAiAssistant = () => {
   const [isOpen, setIsOpen] = useState(false)
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      sender: 'ai',
-      text: "Hello! 👋 I am your AI Homework Companion. Ask me any math, science, or writing question, and I'll help you solve it instantly!",
-      timestamp: new Date()
+  const [sessions, setSessions] = useState(() => {
+    const saved = localStorage.getItem('homework_helper_chat_sessions')
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        return parsed.map(session => ({
+          ...session,
+          messages: session.messages.map(msg => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))
+        }))
+      } catch (e) {
+        console.error('Failed to parse chat sessions', e)
+      }
     }
-  ])
+    const defaultSessionId = Date.now()
+    return [
+      {
+        id: defaultSessionId,
+        title: 'New Chat 🤖',
+        messages: [
+          {
+            id: 1,
+            sender: 'ai',
+            text: "Hello! 👋 I am your AI Homework Companion. Ask me any math, science, or writing question, and I'll help you solve it instantly!",
+            timestamp: new Date()
+          }
+        ]
+      }
+    ]
+  })
+
+  const [activeSessionId, setActiveSessionId] = useState(() => {
+    const saved = localStorage.getItem('homework_helper_active_session_id')
+    if (saved) {
+      return Number(saved)
+    }
+    return sessions[0]?.id || Date.now()
+  })
+
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const messagesEndRef = useRef(null)
+  const fileInputRef = useRef(null)
   const { showToast } = useToast()
+
+  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0]
+  const messages = activeSession ? activeSession.messages : []
+
+  // Auto-save sessions and activeSessionId to local storage
+  useEffect(() => {
+    localStorage.setItem('homework_helper_chat_sessions', JSON.stringify(sessions))
+  }, [sessions])
+
+  useEffect(() => {
+    localStorage.setItem('homework_helper_active_session_id', activeSessionId.toString())
+  }, [activeSessionId])
+
+  const startNewChat = () => {
+    const newSessionId = Date.now()
+    const newSession = {
+      id: newSessionId,
+      title: 'New Chat 🤖',
+      messages: [
+        {
+          id: 1,
+          sender: 'ai',
+          text: "Hello! 👋 I am your AI Homework Companion. Ask me any math, science, or writing question, and I'll help you solve it instantly!",
+          timestamp: new Date()
+        }
+      ]
+    }
+    setSessions(prev => [newSession, ...prev])
+    setActiveSessionId(newSessionId)
+    setIsHistoryOpen(false)
+    showToast('Started new chat!', 'success')
+  }
+
+  const deleteSession = (id, e) => {
+    e.stopPropagation()
+    if (sessions.length === 1) {
+      showToast('Cannot delete the only chat session!', 'warning')
+      return
+    }
+    if (window.confirm("Are you sure you want to delete this conversation?")) {
+      const remaining = sessions.filter(s => s.id !== id)
+      setSessions(remaining)
+      if (activeSessionId === id) {
+        setActiveSessionId(remaining[0].id)
+      }
+      showToast('Chat deleted!', 'info')
+    }
+  }
+
+  const renameSession = (id, e) => {
+    e.stopPropagation()
+    const sessionToRename = sessions.find(s => s.id === id)
+    if (!sessionToRename) return
+    
+    const newName = window.prompt("Enter new title for this chat:", sessionToRename.title)
+    if (newName && newName.trim().length > 0) {
+      setSessions(prev => prev.map(s => {
+        if (s.id === id) {
+          return { ...s, title: newName.trim() }
+        }
+        return s
+      }))
+      showToast('Chat title updated!', 'success')
+    }
+  }
+
+  // Dynamically load Mammoth docx parser
+  const loadMammoth = async () => {
+    if (window.mammoth) return window.mammoth
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script')
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js'
+      script.onload = () => resolve(window.mammoth)
+      script.onerror = () => reject(new Error('Failed to load DOCX parser'))
+      document.head.appendChild(script)
+    })
+  }
+
+  // Dynamically load PDFJS parser
+  const loadPDFJS = async () => {
+    if (window.pdfjsLib) return window.pdfjsLib
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script')
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js'
+      script.onload = () => {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js'
+        resolve(window.pdfjsLib)
+      }
+      script.onerror = () => reject(new Error('Failed to load PDF parser'))
+      document.head.appendChild(script)
+    })
+  }
+
+  const extractDocxText = async (file) => {
+    const mammothLib = await loadMammoth()
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        try {
+          const arrayBuffer = e.target.result
+          const result = await mammothLib.extractRawText({ arrayBuffer })
+          resolve(result.value)
+        } catch (err) {
+          reject(err)
+        }
+      }
+      reader.onerror = () => reject(new Error('Failed to read DOCX file'))
+      reader.readAsArrayBuffer(file)
+    })
+  }
+
+  const extractPdfText = async (file) => {
+    const pdfjs = await loadPDFJS()
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        try {
+          const typedarray = new Uint8Array(e.target.result)
+          const pdf = await pdfjs.getDocument(typedarray).promise
+          let fullText = ''
+          
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i)
+            const textContent = await page.getTextContent()
+            const pageText = textContent.items.map(item => item.str).join(' ')
+            fullText += pageText + '\n'
+          }
+          
+          resolve(fullText)
+        } catch (err) {
+          reject(err)
+        }
+      }
+      reader.onerror = () => reject(new Error('Failed to read PDF file'))
+      reader.readAsArrayBuffer(file)
+    })
+  }
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    const extension = file.name.split('.').pop().toLowerCase()
+    showToast(`Reading ${file.name}...`, 'info')
+
+    try {
+      let extractedText = ''
+      if (extension === 'pdf') {
+        extractedText = await extractPdfText(file)
+      } else if (extension === 'docx') {
+        extractedText = await extractDocxText(file)
+      } else {
+        extractedText = await new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = (evt) => resolve(evt.target.result)
+          reader.onerror = () => reject(new Error('Failed to read file'))
+          reader.readAsText(file)
+        })
+      }
+
+      if (extractedText && extractedText.trim().length > 0) {
+        setInputValue(prev => prev + `\n\n[File Attached: ${file.name}]\n${extractedText}`)
+        showToast(`${file.name} loaded successfully!`, 'success')
+      } else {
+        showToast('Successfully read file, but no text content was found.', 'warning')
+      }
+    } catch (err) {
+      console.error(err)
+      showToast(`Error reading document: ${err.message}`, 'error')
+    }
+  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -66,7 +272,23 @@ const MobileAiAssistant = () => {
     if (!text.trim()) return
 
     const userMsg = { id: Date.now(), sender: 'user', text, timestamp: new Date() }
-    setMessages(prev => [...prev, userMsg])
+    
+    // Append to active session and auto-rename title if default
+    setSessions(prev => prev.map(s => {
+      if (s.id === activeSessionId) {
+        const isDefaultTitle = s.title === 'New Chat 🤖' || s.title === 'New Chat'
+        const newTitle = isDefaultTitle 
+          ? (text.length > 25 ? text.substring(0, 25) + '...' : text)
+          : s.title
+        return {
+          ...s,
+          title: newTitle,
+          messages: [...s.messages, userMsg]
+        }
+      }
+      return s
+    }))
+
     setInputValue('')
     setIsTyping(true)
 
@@ -129,19 +351,28 @@ const MobileAiAssistant = () => {
 
     setTimeout(() => {
       setIsTyping(false)
-      setMessages(prev => [...prev, {
+      const aiMsg = {
         id: Date.now() + 1,
         sender: 'ai',
         text: responseText,
         timestamp: new Date()
-      }])
+      }
+      setSessions(prev => prev.map(s => {
+        if (s.id === activeSessionId) {
+          return {
+            ...s,
+            messages: [...s.messages, aiMsg]
+          }
+        }
+        return s
+      }))
     }, 300)
   }
 
   return (
     <>
-      {/* Floating Robot Action Button - Mobile Only (Floating above Bottom Nav) */}
-      <div className="md:hidden fixed bottom-20 right-6 z-50">
+      {/* Floating Robot Action Button - Responsive and fully functional on desktop & mobile */}
+      <div className="fixed bottom-20 right-6 md:bottom-8 md:right-8 z-50">
         <div className="relative">
           {/* Pulsing Outer Ring */}
           <div className="absolute inset-0 rounded-full bg-accent/30 animate-ping" />
@@ -149,7 +380,7 @@ const MobileAiAssistant = () => {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setIsOpen(true)}
+            onClick={() => setIsOpen(!isOpen)}
             className="w-14 h-14 rounded-full flex items-center justify-center bg-gradient-to-r from-accent via-primary to-accent shadow-lg shadow-accent/40 border border-white/20 relative z-10 text-white focus:outline-none"
           >
             <Bot className="w-7 h-7 animate-pulse" />
@@ -157,49 +388,130 @@ const MobileAiAssistant = () => {
         </div>
       </div>
 
-      {/* Chat Companion Modal */}
+      {/* Chat Companion Modal / Floating Card */}
       <AnimatePresence>
         {isOpen && (
-          <div className="md:hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-            {/* Overlay */}
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 md:inset-auto md:bottom-24 md:right-8 md:p-0 md:z-50">
+            {/* Overlay - Mobile Only to allow desktop multitasking */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsOpen(false)}
-              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm md:hidden"
             />
 
-            {/* Modal Body */}
             <motion.div
               initial={{ opacity: 0, y: 100, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 100, scale: 0.95 }}
               transition={{ type: 'spring', damping: 25, stiffness: 250 }}
-              className="w-full max-w-md h-[80vh] flex flex-col relative z-10 rounded-2xl overflow-hidden"
+              className="w-full max-w-md h-[80vh] md:w-96 md:h-[550px] flex flex-col relative z-10 rounded-2xl overflow-hidden shadow-2xl"
             >
               <Glass className="flex-1 flex flex-col border-white/20 bg-[#0d1220]/90 backdrop-blur-2xl ring-1 ring-white/10 shadow-2xl h-full">
                 
                 {/* Header */}
-                <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-accent to-primary flex items-center justify-center shadow-lg shadow-accent/20">
-                      <Bot className="w-5 h-5 text-white animate-bounce" />
-                    </div>
-                    <div>
-                      <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-                        AI Companion <Sparkles className="w-3.5 h-3.5 text-accent animate-pulse" />
-                      </h2>
-                      <p className="text-[10px] text-slate-400 font-semibold tracking-wide uppercase mt-0.5">Study Smart, Solve Instantly</p>
+                <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02] z-50">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <button
+                      onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+                      title="Chat History"
+                      className={`p-1.5 rounded-lg border transition-all shrink-0 ${
+                        isHistoryOpen 
+                          ? "bg-primary/20 border-primary/30 text-primary" 
+                          : "bg-white/5 border-white/10 text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <History className="w-4 h-4" />
+                    </button>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-primary flex items-center justify-center shadow-lg shadow-accent/20 shrink-0">
+                        <Bot className="w-4.5 h-4.5 text-white animate-bounce" />
+                      </div>
+                      <div className="min-w-0">
+                        <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1 truncate pr-1">
+                          {isHistoryOpen ? "Chat History" : activeSession.title}
+                        </h2>
+                        <p className="text-[9px] text-slate-400 font-semibold tracking-wide uppercase mt-0.5">AI Companion</p>
+                      </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setIsOpen(false)}
-                    className="p-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => setIsOpen(false)}
+                      className="p-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
+
+                {/* Sliding History Drawer */}
+                <AnimatePresence>
+                  {isHistoryOpen && (
+                    <motion.div
+                      initial={{ x: '-100%' }}
+                      animate={{ x: 0 }}
+                      exit={{ x: '-100%' }}
+                      transition={{ type: 'tween', duration: 0.25 }}
+                      className="absolute inset-x-0 bottom-0 top-[65px] bg-[#0a0e1a]/95 backdrop-blur-3xl z-40 border-r border-white/10 flex flex-col p-4"
+                    >
+                      {/* New Chat Button */}
+                      <button
+                        onClick={startNewChat}
+                        className="w-full flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-accent to-primary hover:from-accent/90 hover:to-primary/90 text-white rounded-xl font-black uppercase text-xs tracking-wider shadow-lg shadow-accent/20 transition-all mb-4 shrink-0"
+                      >
+                        <Plus className="w-4 h-4" />
+                        New Chat
+                      </button>
+
+                      {/* Sessions List */}
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-2 px-1">Recent Conversations</p>
+                      <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                        {sessions.map(s => {
+                          const isActive = s.id === activeSessionId
+                          return (
+                            <div
+                              key={s.id}
+                              onClick={() => {
+                                setActiveSessionId(s.id)
+                                setIsHistoryOpen(false)
+                              }}
+                              className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${
+                                isActive 
+                                  ? 'bg-primary/10 border-primary/30 text-white font-bold' 
+                                  : 'bg-white/5 border-white/5 text-slate-300 hover:bg-white/10 hover:border-white/10'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                <Bot className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary' : 'text-slate-500'}`} />
+                                <span className="text-xs truncate">{s.title}</span>
+                              </div>
+                              
+                              {/* Session Action Buttons */}
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0 ml-2">
+                                <button
+                                  onClick={(e) => renameSession(s.id, e)}
+                                  title="Rename Chat"
+                                  className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition-colors"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => deleteSession(s.id, e)}
+                                  title="Delete Chat"
+                                  className="p-1 hover:bg-red-500/20 rounded text-slate-400 hover:text-red-400 transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#0a0e1a]/40">
@@ -260,24 +572,38 @@ const MobileAiAssistant = () => {
 
                 {/* Input Bar */}
                 <div className="p-4 border-t border-white/10 bg-white/[0.02]">
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleFileUpload} 
+                    className="hidden" 
+                    accept=".txt,.js,.py,.md,.html,.css,.json,.pdf,.docx"
+                  />
                   <form
                     onSubmit={(e) => {
                       e.preventDefault()
                       handleSend(inputValue)
                     }}
-                    className="flex gap-2"
+                    className="flex gap-2 items-center"
                   >
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-3 bg-white/5 border border-white/10 hover:bg-white/10 text-slate-400 hover:text-white rounded-xl transition-all flex items-center justify-center shrink-0"
+                    >
+                      <Paperclip className="w-4 h-4" />
+                    </button>
                     <input
                       type="text"
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
-                      placeholder="Ask your companion anything..."
+                      placeholder="Ask or attach document..."
                       className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent transition-all"
                     />
                     <Button
                       type="submit"
                       variant="accent"
-                      className="px-4 bg-gradient-to-r from-accent to-primary flex items-center justify-center"
+                      className="px-4 bg-gradient-to-r from-accent to-primary flex items-center justify-center h-10"
                     >
                       <Send className="w-4 h-4" />
                     </Button>

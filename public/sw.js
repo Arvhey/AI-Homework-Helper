@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ai-helper-v8';
+const CACHE_NAME = 'ai-helper-v12';
 const urlsToCache = [
   '/',
   '/index.html',

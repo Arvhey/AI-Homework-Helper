@@ -12,6 +12,7 @@ import Profile from '../pages/Profile'
 import Settings from '../pages/Settings'
 import Login from '../pages/Login'
 import Register from '../pages/Register'
+import GcashPay from '../pages/GcashPay'
 import NotFound from '../pages/NotFound'
 import ProtectedLayout from '../components/layout/ProtectedLayout'
 import ProtectedRoute from './ProtectedRoute'
@@ -22,6 +23,7 @@ const AppRoutes = () => {
       <Route path="/" element={<Login />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/gcash-pay" element={<GcashPay />} />
       
       <Route element={<ProtectedRoute />}>
         <Route element={<ProtectedLayout />}>

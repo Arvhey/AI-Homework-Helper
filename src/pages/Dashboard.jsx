@@ -94,8 +94,82 @@ const Dashboard = () => {
   React.useEffect(() => {
     if (user) {
       fetchAllData()
+      fetchRealtimeLeaderboard()
+
+      // Subscribe to real-time changes in the 'quizzes' and 'profiles' tables!
+      const channel = supabase
+        .channel('realtime-leaderboard')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'quizzes' },
+          () => {
+            console.log('Quizzes changed, updating leaderboard live...')
+            fetchRealtimeLeaderboard()
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'profiles' },
+          () => {
+            console.log('Profiles changed, updating leaderboard live...')
+            fetchRealtimeLeaderboard()
+          }
+        )
+        .subscribe()
+
+      return () => {
+        supabase.removeChannel(channel)
+      }
     }
   }, [user])
+
+  const fetchRealtimeLeaderboard = async () => {
+    try {
+      // 1. Fetch all profiles
+      const { data: profiles, error: profileErr } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+      
+      if (profileErr) throw profileErr
+
+      // 2. Fetch all quizzes to calculate total XP for each user
+      const { data: quizzes, error: quizErr } = await supabase
+        .from('quizzes')
+        .select('user_id, score')
+      
+      if (quizErr) throw quizErr
+
+      // 3. Group and calculate XP per user: XP = total score * 10
+      const xpMap = {}
+      quizzes?.forEach(q => {
+        if (!q.user_id) return
+        xpMap[q.user_id] = (xpMap[q.user_id] || 0) + (q.score || 0)
+      })
+
+      // 4. Combine profile information with XP
+      const rankings = profiles.map(p => {
+        const totalScore = xpMap[p.id] || 0
+        return {
+          id: p.id,
+          name: p.id === user.id ? `${p.full_name || 'You'} (You)` : (p.full_name || 'Anonymous Student'),
+          xp: totalScore * 10,
+          avatar: p.avatar_url || '👤'
+        }
+      })
+
+      // 5. Sort descending by XP, and add Rank
+      const sortedRankings = rankings
+        .sort((a, b) => b.xp - a.xp)
+        .map((userRank, index) => ({
+          ...userRank,
+          rank: index + 1
+        }))
+
+      setLeaderboard(sortedRankings.slice(0, 10)) // Display top 10 students
+    } catch (err) {
+      console.error('Error fetching real-time leaderboard:', err)
+    }
+  }
 
   const fetchAllData = async () => {
     try {
@@ -165,12 +239,8 @@ const Dashboard = () => {
         .limit(3)
       setDeadlines(goalData || [])
 
-      // 4. Fetch Leaderboard (Mocked since we don't have global XP column yet)
-      setLeaderboard([
-        { name: 'You', xp: (totalXP * 10).toLocaleString(), rank: 1, avatar: '👤' },
-        { name: 'Sarah M.', xp: '2,320', rank: 2, avatar: '👩‍🎓' },
-        { name: 'John D.', xp: '2,100', rank: 3, avatar: '👨‍🎓' },
-      ])
+      // 4. Fetch Leaderboard (Loaded from the global realtime list instead)
+      await fetchRealtimeLeaderboard()
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
@@ -308,17 +378,36 @@ const Dashboard = () => {
 
           <Glass className="p-8">
             <h2 className="text-xl font-bold text-white mb-6">{t('leaderboard')}</h2>
-            <div className="space-y-6">
-              {leaderboard.map((user, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="text-lg font-bold text-slate-500 w-4">{user.rank}</div>
-                    <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-xl">
-                      {user.avatar}
+            <div className="space-y-4">
+              {leaderboard.map((u, i) => (
+                <div 
+                  key={i} 
+                  className={cn(
+                    "flex items-center justify-between p-2 rounded-xl transition-all",
+                    u.id === user.id ? "bg-primary/10 border border-primary/20 shadow-md shadow-primary/5" : ""
+                  )}
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1 mr-4">
+                    <div className={cn(
+                      "text-lg font-black w-5 flex items-center justify-center shrink-0",
+                      u.rank === 1 ? "text-yellow-500 animate-pulse" : u.rank === 2 ? "text-slate-300" : u.rank === 3 ? "text-amber-600" : "text-slate-500"
+                    )}>
+                      {u.rank}
                     </div>
-                    <div className="font-semibold text-white">{user.name}</div>
+                    <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-xl overflow-hidden shrink-0 border border-white/5">
+                      {u.avatar && u.avatar.startsWith('http') ? (
+                        <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
+                      ) : (
+                        u.avatar || '👤'
+                      )}
+                    </div>
+                    <div className="font-semibold text-white truncate min-w-0">
+                      {u.name}
+                    </div>
                   </div>
-                  <div className="text-primary font-bold">{user.xp} XP</div>
+                  <div className="text-primary font-bold shrink-0">
+                    {u.xp.toLocaleString()} XP
+                  </div>
                 </div>
               ))}
             </div>
