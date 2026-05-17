@@ -87,9 +87,28 @@ export const aiService = {
   },
   
   generateQuiz: async (topic) => {
+    // Dynamically detect how many questions or items are explicitly listed in the notes
+    const questionMarkCount = (topic.match(/\?/g) || []).length
+    const numberedItemCount = (topic.match(/^\s*\d+[\.\)]\s+/gm) || []).length
+    
+    // Choose the maximum detected count, clamped between a reasonable range (3 to 30)
+    const detectedCount = Math.max(questionMarkCount, numberedItemCount)
+    const targetCount = (detectedCount >= 3 && detectedCount <= 30) ? detectedCount : 10
+
     const prompt = [{ 
       role: 'user', 
-      content: `Generate a 3-question multiple choice quiz about "${topic}". If the topic "${topic}" is extremely short, gibberish, or unclear, please automatically generate a high-quality general knowledge academic study quiz about science, history, or mathematics. You must respond ONLY with a raw JSON array of objects containing 'question' (string), 'options' (array of 4 strings), and 'answer' (string matching exactly one of the options). Do not include markdown codeblocks or text outside the JSON array.` 
+      content: `Generate exactly a ${targetCount}-question adaptive academic quiz about "${topic}". First, analyze the provided text. If the text explicitly contains Multiple Choice, Identification (direct single-answer/fill-in-the-blank), or Enumeration (listing multiple items) questions, you must follow and generate those EXACT questions, preserving their original styles and matching the total count. If the text is a general summary without explicit questions, generate a high-quality 10-question quiz blending these three types.
+
+You must respond ONLY with a raw JSON array of objects representing the quiz questions. Each object must have:
+1. 'question' (string): The text of the question.
+2. 'type' (string): Must be either 'multiple_choice', 'identification', or 'enumeration'.
+3. 'options' (array of strings, ONLY for 'multiple_choice'): Provide exactly 4 options. For other types, leave empty or omit.
+4. 'answer':
+   - For 'multiple_choice': A string matching exactly one of the 4 options.
+   - For 'identification': A string representing the correct direct answer (e.g., "Oxygen").
+   - For 'enumeration': An array of strings representing the correct items to list (e.g., ["Red", "White", "Blue"]).
+
+Do not include markdown codeblocks, do not include word wraps or text outside the JSON array.` 
     }]
     
     let response = ""
@@ -103,11 +122,12 @@ export const aiService = {
       }
       throw new Error("Invalid quiz structure")
     } catch (e) {
-      console.warn('Quiz generation or parsing failed, serving customized local study quiz:', e)
+      console.warn('Quiz generation or parsing failed, serving customized local 10-question study quiz:', e)
       
       const cleanTopic = topic.length > 25 ? topic.substring(0, 25) + '...' : topic
       return [
         {
+          type: "multiple_choice",
           question: `Which of the following is the most effective way to master the topic of "${cleanTopic}"?`,
           options: [
             "Spaced repetition, active recall, and constant testing",
@@ -118,6 +138,7 @@ export const aiService = {
           answer: "Spaced repetition, active recall, and constant testing"
         },
         {
+          type: "multiple_choice",
           question: "Why is taking custom quizzes highly recommended by cognitive science researchers?",
           options: [
             "It forces the brain to retrieve information, strengthening synaptic paths",
@@ -128,6 +149,7 @@ export const aiService = {
           answer: "It forces the brain to retrieve information, strengthening synaptic paths"
         },
         {
+          type: "multiple_choice",
           question: "Which utility is built for robust, offline, distraction-free full screen studying?",
           options: [
             "The AI Homework Helper PWA Installed Companion",
@@ -136,6 +158,41 @@ export const aiService = {
             "A static command line editor operating locally"
           ],
           answer: "The AI Homework Helper PWA Installed Companion"
+        },
+        {
+          type: "identification",
+          question: "What is the primary gas found in Earth's atmosphere that is crucial for human breathing?",
+          answer: "Oxygen"
+        },
+        {
+          type: "identification",
+          question: "In basic mathematics, what is the value of the mathematical constant Pi (rounded to two decimal places)?",
+          answer: "3.14"
+        },
+        {
+          type: "identification",
+          question: "Which organ in the human body is primarily responsible for pumping oxygenated blood throughout the circulatory system?",
+          answer: "Heart"
+        },
+        {
+          type: "identification",
+          question: "Who is traditionally known as the national hero of the Philippines?",
+          answer: "Jose Rizal"
+        },
+        {
+          type: "enumeration",
+          question: "Name the three colors present on the official flag of the Philippines.",
+          answer: ["Red", "White", "Blue"]
+        },
+        {
+          type: "enumeration",
+          question: "List the primary two memory techniques recommended by cognitive scientists for high-fidelity exam recall.",
+          answer: ["Active Recall", "Spaced Repetition"]
+        },
+        {
+          type: "enumeration",
+          question: "Name the two primary celestial bodies in our solar system that directly influence ocean tides and daylight on Earth.",
+          answer: ["Sun", "Moon"]
         }
       ]
     }

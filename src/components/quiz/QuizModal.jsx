@@ -12,6 +12,21 @@ const QuizModal = ({ isOpen, onClose, quizData, onComplete }) => {
   const [showResult, setShowResult] = useState(false)
   const [answers, setAnswers] = useState([])
 
+  const [typedAnswer, setTypedAnswer] = useState('')
+  const [enumAnswers, setEnumAnswers] = useState([])
+
+  useEffect(() => {
+    if (quizData && quizData[currentQuestion]) {
+      const q = quizData[currentQuestion]
+      if (q.type === 'enumeration') {
+        setEnumAnswers(Array(q.answer ? q.answer.length : 3).fill(''))
+      } else {
+        setEnumAnswers([])
+      }
+      setTypedAnswer('')
+    }
+  }, [currentQuestion, quizData])
+
   if (!quizData || quizData.length === 0) return null
 
   const handleAnswerSelect = (option) => {
@@ -26,6 +41,47 @@ const QuizModal = ({ isOpen, onClose, quizData, onComplete }) => {
       selected: option,
       correct: quizData[currentQuestion].answer,
       isCorrect 
+    }])
+  }
+
+  const handleIdentificationSubmit = () => {
+    if (selectedAnswer || !typedAnswer.trim()) return
+    const q = quizData[currentQuestion]
+    const isCorrect = typedAnswer.trim().toLowerCase() === q.answer.trim().toLowerCase()
+    
+    setSelectedAnswer(typedAnswer)
+    if (isCorrect) setScore(prev => prev + 1)
+    
+    setAnswers(prev => [...prev, {
+      question: q.question,
+      selected: typedAnswer,
+      correct: q.answer,
+      isCorrect
+    }])
+  }
+
+  const handleEnumerationSubmit = () => {
+    if (selectedAnswer) return
+    const q = quizData[currentQuestion]
+    const correctItems = q.answer.map(item => item.trim().toLowerCase())
+    const userItems = enumAnswers.map(item => item.trim()).filter(Boolean)
+    
+    let correctCount = 0
+    userItems.forEach(item => {
+      if (correctItems.includes(item.toLowerCase())) {
+        correctCount++
+      }
+    })
+    
+    const isAllCorrect = correctCount === correctItems.length
+    setSelectedAnswer(userItems.join(', ') || 'None')
+    if (isAllCorrect) setScore(prev => prev + 1)
+    
+    setAnswers(prev => [...prev, {
+      question: q.question,
+      selected: userItems.join(', '),
+      correct: q.answer.join(', '),
+      isCorrect: isAllCorrect
     }])
   }
 
@@ -48,6 +104,7 @@ const QuizModal = ({ isOpen, onClose, quizData, onComplete }) => {
   }
 
   const question = quizData[currentQuestion]
+  const questionType = question.type || 'multiple_choice'
 
   return (
     <AnimatePresence>
@@ -82,7 +139,8 @@ const QuizModal = ({ isOpen, onClose, quizData, onComplete }) => {
                   </div>
 
                   <div className="flex items-center justify-between mb-4 md:mb-6 shrink-0">
-                    <span className="text-xs md:text-sm font-bold text-primary uppercase tracking-widest">
+                    <span className="text-xs md:text-sm font-bold text-primary uppercase tracking-widest flex items-center gap-1.5">
+                      <Brain className="w-4 h-4 text-primary animate-pulse" />
                       Question {currentQuestion + 1} of {quizData.length}
                     </span>
                     <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
@@ -91,36 +149,123 @@ const QuizModal = ({ isOpen, onClose, quizData, onComplete }) => {
                   </div>
 
                   <div className="flex-1 overflow-y-auto pr-1 space-y-4 md:space-y-6 mb-4 scrollbar-thin">
-                    <h2 className="text-lg md:text-2xl font-bold text-white leading-tight">
-                      {question.question}
-                    </h2>
-
-                    <div className="space-y-3 md:space-y-4">
-                      {question.options.map((option, i) => {
-                        const isSelected = selectedAnswer === option
-                        const isCorrect = option === question.answer
-                        const isWrong = isSelected && !isCorrect
-                        
-                        return (
-                          <button
-                            key={i}
-                            onClick={() => handleAnswerSelect(option)}
-                            disabled={!!selectedAnswer}
-                            className={cn(
-                              "w-full p-3 md:p-4 rounded-xl border text-left transition-all duration-300 flex items-center justify-between group text-xs md:text-sm",
-                              !selectedAnswer ? "bg-white/5 border-white/10 hover:bg-white/10 hover:border-primary/50" :
-                              isCorrect ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-500" :
-                              isWrong ? "bg-red-500/10 border-red-500/50 text-red-500" :
-                              "bg-white/5 border-white/10 opacity-50"
-                            )}
-                          >
-                            <span className="font-medium">{option}</span>
-                            {selectedAnswer && isCorrect && <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 shrink-0 ml-2" />}
-                            {selectedAnswer && isWrong && <AlertCircle className="w-4 h-4 md:w-5 md:h-5 shrink-0 ml-2" />}
-                          </button>
-                        )
-                      })}
+                    <div className="space-y-1">
+                      <span className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest bg-white/5 border border-white/10 px-2 py-0.5 rounded-md">
+                        {questionType.replace('_', ' ')}
+                      </span>
+                      <h2 className="text-lg md:text-2xl font-bold text-white leading-tight mt-2">
+                        {question.question}
+                      </h2>
                     </div>
+
+                    {/* Type 1: Multiple Choice */}
+                    {questionType === 'multiple_choice' && (
+                      <div className="space-y-3 md:space-y-4">
+                        {question.options?.map((option, i) => {
+                          const isSelected = selectedAnswer === option
+                          const isCorrect = option === question.answer
+                          const isWrong = isSelected && !isCorrect
+                          
+                          return (
+                            <button
+                              key={i}
+                              onClick={() => handleAnswerSelect(option)}
+                              disabled={!!selectedAnswer}
+                              className={cn(
+                                "w-full p-3 md:p-4 rounded-xl border text-left transition-all duration-300 flex items-center justify-between group text-xs md:text-sm",
+                                !selectedAnswer ? "bg-white/5 border-white/10 hover:bg-white/10 hover:border-primary/50" :
+                                isCorrect ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-500" :
+                                isWrong ? "bg-red-500/10 border-red-500/50 text-red-500" :
+                                "bg-white/5 border-white/10 opacity-50"
+                              )}
+                            >
+                              <span className="font-medium">{option}</span>
+                              {selectedAnswer && isCorrect && <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 shrink-0 ml-2" />}
+                              {selectedAnswer && isWrong && <AlertCircle className="w-4 h-4 md:w-5 md:h-5 shrink-0 ml-2" />}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Type 2: Identification */}
+                    {questionType === 'identification' && (
+                      <div className="space-y-4">
+                        <input
+                          type="text"
+                          value={typedAnswer}
+                          onChange={(e) => setTypedAnswer(e.target.value)}
+                          disabled={!!selectedAnswer}
+                          placeholder="Type your answer here..."
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-xs md:text-sm text-white outline-none focus:border-primary/50 transition-all"
+                        />
+                        {!selectedAnswer ? (
+                          <Button variant="primary" onClick={handleIdentificationSubmit} disabled={!typedAnswer.trim()} className="w-full py-3">
+                            Submit Answer
+                          </Button>
+                        ) : (
+                          <div className={cn(
+                            "p-4 rounded-xl border text-xs md:text-sm flex items-center justify-between",
+                            typedAnswer.trim().toLowerCase() === question.answer.trim().toLowerCase()
+                              ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-500"
+                              : "bg-red-500/10 border-red-500/50 text-red-500"
+                          )}>
+                            <div>
+                              <span className="font-bold block">Your Answer: {typedAnswer}</span>
+                              <span className="text-xs text-slate-400 mt-1 block font-semibold">Correct Answer: {question.answer}</span>
+                            </div>
+                            {typedAnswer.trim().toLowerCase() === question.answer.trim().toLowerCase() ? <CheckCircle2 className="w-5 h-5 shrink-0 ml-2" /> : <AlertCircle className="w-5 h-5 shrink-0 ml-2" />}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Type 3: Enumeration */}
+                    {questionType === 'enumeration' && (
+                      <div className="space-y-4">
+                        <p className="text-[10px] md:text-xs text-slate-400 font-bold uppercase tracking-wide">Provide {question.answer?.length} required answers:</p>
+                        <div className="space-y-3">
+                          {enumAnswers.map((val, idx) => (
+                            <input
+                              key={idx}
+                              type="text"
+                              value={val}
+                              onChange={(e) => {
+                                const copy = [...enumAnswers]
+                                copy[idx] = e.target.value
+                                setEnumAnswers(copy)
+                              }}
+                              disabled={!!selectedAnswer}
+                              placeholder={`Item ${idx + 1}...`}
+                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-primary/50 transition-all"
+                            />
+                          ))}
+                        </div>
+                        {!selectedAnswer ? (
+                          <Button variant="primary" onClick={handleEnumerationSubmit} disabled={enumAnswers.filter(Boolean).length === 0} className="w-full py-3 mt-2">
+                            Submit Items
+                          </Button>
+                        ) : (
+                          <div className="p-4 rounded-xl border border-white/10 bg-white/5 text-xs md:text-sm space-y-2">
+                            <span className="font-bold text-white block">Correct Items:</span>
+                            <div className="flex flex-wrap gap-2">
+                              {question.answer?.map((ans, idx) => {
+                                const wasEntered = enumAnswers.map(x => x.trim().toLowerCase()).includes(ans.trim().toLowerCase())
+                                return (
+                                  <span key={idx} className={cn(
+                                    "px-2.5 py-1 rounded-full border text-[10px] md:text-xs font-semibold",
+                                    wasEntered ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500" : "bg-red-500/10 border-red-500/30 text-red-400"
+                                  )}>
+                                    {ans}
+                                  </span>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                   </div>
 
                   <div className="flex justify-end shrink-0 border-t border-white/5 pt-3 md:pt-4">
