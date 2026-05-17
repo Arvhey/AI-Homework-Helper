@@ -75,24 +75,15 @@ const MobileAiAssistant = () => {
     try {
       const systemPrompt = 'You are a friendly, expert AI Homework Helper and Study Companion for Filipino students. Give concise, clear, well-formatted educational answers. For Tagalog folk songs like Bahay Kubo, provide the complete lyrics. Use bullet points and numbered lists to organize answers.'
 
-      const res = await fetch('https://gen.pollinations.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: text }
-          ],
-          model: 'openai',
-          temperature: 0.7
-        }),
+      const promptText = `System: ${systemPrompt}\nUser: ${text}`
+      const res = await fetch(`https://gen.pollinations.ai/text/${encodeURIComponent(promptText)}`, {
         signal: AbortSignal.timeout(12000) // 12 second timeout
       })
 
       if (res.ok) {
-        const data = await res.json()
-        if (data && data.choices && data.choices[0] && data.choices[0].message) {
-          responseText = data.choices[0].message.content.trim()
+        const raw = await res.text()
+        if (raw && raw.trim().length > 0) {
+          responseText = raw.trim()
         } else {
           responseText = getLocalResponse(text)
         }

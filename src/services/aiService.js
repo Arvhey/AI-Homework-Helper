@@ -38,25 +38,20 @@ export const aiService = {
 
   fallbackChat: async (messages) => {
     try {
-      const res = await fetch('https://gen.pollinations.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: messages,
-          model: 'openai',
-          temperature: 0.7
-        })
-      });
+      // Flatten messages array into a unified prompt string for the GET request
+      const promptText = messages.map(m => `${m.role === 'user' ? 'User' : 'System'}: ${m.content}`).join('\n')
+      
+      const res = await fetch(`https://gen.pollinations.ai/text/${encodeURIComponent(promptText)}`);
 
       if (!res.ok) {
         throw new Error(`Fallback API returned HTTP ${res.status}`);
       }
 
-      const data = await res.json();
-      if (data && data.choices && data.choices[0] && data.choices[0].message) {
-        return data.choices[0].message.content.trim();
+      const text = await res.text();
+      if (text && text.trim().length > 0) {
+        return text.trim();
       }
-      throw new Error('Received invalid JSON format from fallback API');
+      throw new Error('Received empty response from fallback API');
     } catch (err) {
       console.error('All AI endpoints failed:', err);
       return "Sorry, I encountered an error while processing your request.";
