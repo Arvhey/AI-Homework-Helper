@@ -116,16 +116,110 @@ const Quiz = () => {
     }
   }
 
-  const handleFileUpload = (e) => {
+  // Dynamically load Mammoth docx parser
+  const loadMammoth = async () => {
+    if (window.mammoth) return window.mammoth
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script')
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js'
+      script.onload = () => resolve(window.mammoth)
+      script.onerror = () => reject(new Error('Failed to load DOCX parser'))
+      document.head.appendChild(script)
+    })
+  }
+
+  // Dynamically load PDFJS parser
+  const loadPDFJS = async () => {
+    if (window.pdfjsLib) return window.pdfjsLib
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script')
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js'
+      script.onload = () => {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js'
+        resolve(window.pdfjsLib)
+      }
+      script.onerror = () => reject(new Error('Failed to load PDF parser'))
+      document.head.appendChild(script)
+    })
+  }
+
+  const extractDocxText = async (file) => {
+    const mammothLib = await loadMammoth()
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        try {
+          const arrayBuffer = e.target.result
+          const result = await mammothLib.extractRawText({ arrayBuffer })
+          resolve(result.value)
+        } catch (err) {
+          reject(err)
+        }
+      }
+      reader.onerror = () => reject(new Error('Failed to read DOCX file'))
+      reader.readAsArrayBuffer(file)
+    })
+  }
+
+  const extractPdfText = async (file) => {
+    const pdfjs = await loadPDFJS()
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        try {
+          const typedarray = new Uint8Array(e.target.result)
+          const pdf = await pdfjs.getDocument(typedarray).promise
+          let fullText = ''
+          
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i)
+            const textContent = await page.getTextContent()
+            const pageText = textContent.items.map(item => item.str).join(' ')
+            fullText += pageText + '\n'
+          }
+          
+          resolve(fullText)
+        } catch (err) {
+          reject(err)
+        }
+      }
+      reader.onerror = () => reject(new Error('Failed to read PDF file'))
+      reader.readAsArrayBuffer(file)
+    })
+  }
+
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
 
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      setTopic(e.target.result)
-      showToast(`${file.name} loaded!`, 'success')
+    const extension = file.name.split('.').pop().toLowerCase()
+    showToast(`Reading ${file.name}...`, 'info')
+
+    try {
+      let extractedText = ''
+      if (extension === 'pdf') {
+        extractedText = await extractPdfText(file)
+      } else if (extension === 'docx') {
+        extractedText = await extractDocxText(file)
+      } else {
+        extractedText = await new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = (evt) => resolve(evt.target.result)
+          reader.onerror = () => reject(new Error('Failed to read file'))
+          reader.readAsText(file)
+        })
+      }
+
+      if (extractedText && extractedText.trim().length > 10) {
+        setTopic(extractedText)
+        showToast(`${file.name} loaded successfully!`, 'success')
+      } else {
+        showToast('Successfully read file, but no text content was found.', 'warning')
+      }
+    } catch (err) {
+      console.error(err)
+      showToast(`Error reading document: ${err.message}`, 'error')
     }
-    reader.readAsText(file)
   }
 
   return (
@@ -135,7 +229,7 @@ const Quiz = () => {
         ref={fileInputRef} 
         onChange={handleFileUpload} 
         className="hidden" 
-        accept=".txt,.js,.py,.md,.html,.css,.json"
+        accept=".txt,.js,.py,.md,.html,.css,.json,.pdf,.docx"
       />
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
