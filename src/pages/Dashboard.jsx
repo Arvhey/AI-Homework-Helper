@@ -75,10 +75,19 @@ const DashboardSkeleton = () => (
 import { supabase } from '../services/supabase'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../hooks/useAuth'
+import { useAlarm } from '../context/AlarmContext'
+import { Bell, Volume2, ShieldAlert } from 'lucide-react'
 
 const Dashboard = () => {
   const { user } = useAuth()
   const { t } = useLanguage()
+  const { 
+    isDailyEnabled, 
+    setIsDailyEnabled, 
+    dailyTime, 
+    setDailyTime, 
+    triggerAlarm 
+  } = useAlarm()
   const [loading, setLoading] = React.useState(true)
   const [profile, setProfile] = React.useState(null)
   const [statsData, setStatsData] = React.useState({
@@ -374,6 +383,68 @@ const Dashboard = () => {
             <Button variant="glass" className="w-full" onClick={() => window.location.href='/ai-assistant'}>
               {t('study_plan')}
             </Button>
+          </Glass>
+
+          {/* Daily Study Reminders & Flashlight Strobe Alarm */}
+          <Glass className="p-8 bg-gradient-to-br from-primary/10 via-[#0a0f1d] to-accent/10 border-primary/20 shadow-xl space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+                <Bell className="w-5 h-5 text-primary animate-pulse" />
+                Study Reminders
+              </h2>
+              <button
+                onClick={() => setIsDailyEnabled(!isDailyEnabled)}
+                className={`w-12 h-6 rounded-full p-1 transition-all duration-300 ${
+                  isDailyEnabled ? "bg-primary" : "bg-slate-700"
+                }`}
+              >
+                <motion.div
+                  animate={{ x: isDailyEnabled ? 24 : 0 }}
+                  className="w-4 h-4 bg-white rounded-full shadow-lg"
+                />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-xs text-slate-400 leading-relaxed font-semibold">
+                Set a daily study reminder time. When the scheduled time matches, your physical phone's camera **LED flashlight** will strobe and play an emergency siren!
+              </p>
+
+              <div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-2xl p-4">
+                <div className="p-2.5 rounded-xl bg-primary/20 text-primary">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Scheduled Alert</div>
+                  <input
+                    type="time"
+                    value={dailyTime}
+                    disabled={!isDailyEnabled}
+                    onChange={(e) => setDailyTime(e.target.value)}
+                    className="bg-transparent text-white font-black text-base outline-none w-full disabled:opacity-40"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex flex-col gap-2">
+                <Button
+                  variant="primary"
+                  className="w-full py-3.5 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-white font-black uppercase text-[10px] tracking-wider shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+                  onClick={() => {
+                    triggerAlarm(
+                      "🚨 TEST PHYSICAL STROBE ALARM!",
+                      "Success! On your real mobile, your camera LED flashlight is now strobing repeatedly, accompanied by study sirens! Use stop or snooze to control."
+                    )
+                  }}
+                >
+                  <ShieldAlert className="w-4 h-4" />
+                  🚨 Test Live Flashlight & Sound Alarm
+                </Button>
+                <div className="text-[9px] text-center text-slate-500 font-bold uppercase tracking-wider">
+                  Works 100% on physical Android & iOS devices!
+                </div>
+              </div>
+            </div>
           </Glass>
 
           <Glass className="p-8">

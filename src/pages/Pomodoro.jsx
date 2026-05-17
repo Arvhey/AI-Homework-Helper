@@ -19,11 +19,13 @@ import { useToast } from '../hooks/useToast'
 import { useLanguage } from '../context/LanguageContext'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useAlarm } from '../context/AlarmContext'
 
 const Pomodoro = () => {
   const { user } = useAuth()
   const { showToast } = useToast()
   const { t } = useLanguage()
+  const { triggerAlarm } = useAlarm()
   const [settings, setSettings] = useState({
     focus: 25,
     shortBreak: 5,
@@ -55,6 +57,28 @@ const Pomodoro = () => {
       clearInterval(interval)
       setIsActive(false)
       playAlarm()
+      
+      // Trigger dynamic PWA Notification
+      try {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(mode === 'focus' ? "🧠 FOCUS WORK COMPLETED! 🚨" : "☕ BREAK IS OVER! 🚨", {
+            body: mode === 'focus' 
+              ? "Amazing job! Take a short rest, your camera LED strobe is active!"
+              : "Time to get back to deep work! Get ready to study!",
+            icon: "/logo.png"
+          })
+        }
+      } catch (e) {
+        console.warn("Could not fire native notification:", e)
+      }
+
+      // Trigger physical LED flashlight strobe and siren alarm
+      triggerAlarm(
+        mode === 'focus' ? "🧠 POMODORO FOCUS COMPLETED! 🚨" : "☕ BREAK SESSION COMPLETED! 🚨",
+        mode === 'focus'
+          ? "Excellent focus session completed! Your physical camera LED flashlight is strobing! Tap Stop Alert to rest."
+          : "Break is over! Ready to lock in and crush your study goals? Tap Stop Alert to begin."
+      )
       
       const duration = mode === 'focus' ? settings.focus : mode === 'short-break' ? settings.shortBreak : settings.longBreak
       

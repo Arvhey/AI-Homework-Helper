@@ -13,6 +13,90 @@ export const AlarmProvider = ({ children }) => {
   const [alarmTitle, setAlarmTitle] = useState('Critical Alert')
   const [alarmBody, setAlarmBody] = useState('Take action on your active study milestone!')
   
+  // Daily reminder states
+  const [isDailyEnabled, setIsDailyEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem('daily_reminder_enabled')
+      return saved ? JSON.parse(saved) : true
+    } catch (e) {
+      return true
+    }
+  })
+  
+  const [dailyTime, setDailyTime] = useState(() => {
+    try {
+      return localStorage.getItem('daily_reminder_time') || '19:00'
+    } catch (e) {
+      return '19:00'
+    }
+  })
+  
+  const [lastTriggeredDate, setLastTriggeredDate] = useState(() => {
+    try {
+      return localStorage.getItem('daily_reminder_last_date') || ''
+    } catch (e) {
+      return ''
+    }
+  })
+
+  // Sync to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('daily_reminder_enabled', JSON.stringify(isDailyEnabled))
+    } catch (e) {}
+  }, [isDailyEnabled])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('daily_reminder_time', dailyTime)
+    } catch (e) {}
+  }, [dailyTime])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('daily_reminder_last_date', lastTriggeredDate)
+    } catch (e) {}
+  }, [lastTriggeredDate])
+
+  // Background ticker to check daily time
+  useEffect(() => {
+    const checkReminder = () => {
+      if (!isDailyEnabled) return
+
+      const now = new Date()
+      // format to HH:MM in 24hr format
+      const currentHour = String(now.getHours()).padStart(2, '0')
+      const currentMin = String(now.getMinutes()).padStart(2, '0')
+      const currentHourMin = `${currentHour}:${currentMin}`
+      const currentDateString = now.toDateString() // "Mon May 18 2026"
+
+      if (currentHourMin === dailyTime && lastTriggeredDate !== currentDateString) {
+        setLastTriggeredDate(currentDateString)
+        
+        // Trigger push notification if allowed
+        try {
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification("⏰ STUDY ALARM ACTIVATED! 🚨", {
+              body: "Time to crush your study goals! Grab your books, your physical strobe light is flashing!",
+              icon: "/logo.png"
+            })
+          }
+        } catch (e) {
+          console.warn("Could not fire native notification:", e)
+        }
+
+        // Trigger physical LED flashlight strobe and sound siren!
+        triggerAlarm(
+          "⏰ DAILY STUDY SESSION REMINDER! 🚨",
+          "Time to log in and master your studies! Camera strobe flashlight is now strobing, sound alarm ringing!"
+        )
+      }
+    }
+
+    const interval = setInterval(checkReminder, 10000) // check every 10 seconds
+    return () => clearInterval(interval)
+  }, [isDailyEnabled, dailyTime, lastTriggeredDate])
+  
   // Snooze states
   const [isSnoozed, setIsSnoozed] = useState(false)
   const [snoozeTimeLeft, setSnoozeTimeLeft] = useState(0)
@@ -175,7 +259,17 @@ export const AlarmProvider = ({ children }) => {
   }, [])
 
   return (
-    <AlarmContext.Provider value={{ triggerAlarm, stopAlarm, snoozeAlarm, alarmActive, isSnoozed }}>
+    <AlarmContext.Provider value={{ 
+      triggerAlarm, 
+      stopAlarm, 
+      snoozeAlarm, 
+      alarmActive, 
+      isSnoozed, 
+      isDailyEnabled, 
+      setIsDailyEnabled, 
+      dailyTime, 
+      setDailyTime 
+    }}>
       {children}
 
       {/* Global Pulsing Fullscreen Alarm Overlay */}
@@ -231,7 +325,11 @@ export const AlarmProvider = ({ children }) => {
                   <div className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/5 border border-white/10">
                     <Clock className="w-6 h-6 text-yellow-400 animate-spin" />
                     <span className="text-sm font-black text-yellow-400 uppercase tracking-widest">
-                      Snoozed for {snoozeTimeLeft}s
+                      Snoozed: {
+                        snoozeTimeLeft >= 60 
+                          ? `${Math.floor(snoozeTimeLeft / 60)}m ${String(snoozeTimeLeft % 60).padStart(2, '0')}s` 
+                          : `${snoozeTimeLeft}s`
+                      }
                     </span>
                   </div>
                 ) : (
@@ -243,22 +341,41 @@ export const AlarmProvider = ({ children }) => {
                   </div>
                 )}
 
-                <div className="flex gap-4 pt-2">
+                <div className="flex flex-col gap-3 pt-2">
                   {!isSnoozed && (
-                    <Button
-                      variant="glass"
-                      onClick={() => snoozeAlarm(10)} // Snooze for 10s for demo/test ease
-                      className="flex-1 py-3.5 text-xs font-black uppercase tracking-widest border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/10"
-                    >
-                      Snooze ⏱️
-                    </Button>
+                    <div className="space-y-2">
+                      <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider text-left pl-1">Snooze Duration</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button
+                          variant="glass"
+                          onClick={() => snoozeAlarm(10)}
+                          className="py-2.5 text-[9px] font-black uppercase tracking-wider border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/10"
+                        >
+                          10s (Test)
+                        </Button>
+                        <Button
+                          variant="glass"
+                          onClick={() => snoozeAlarm(300)}
+                          className="py-2.5 text-[9px] font-black uppercase tracking-wider border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/10"
+                        >
+                          5 Min ⏱️
+                        </Button>
+                        <Button
+                          variant="glass"
+                          onClick={() => snoozeAlarm(540)}
+                          className="py-2.5 text-[9px] font-black uppercase tracking-wider border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/10"
+                        >
+                          9 Min ⏱️
+                        </Button>
+                      </div>
+                    </div>
                   )}
                   <Button
                     variant="primary"
                     onClick={stopAlarm}
-                    className="flex-1 py-3.5 text-xs font-black uppercase tracking-widest bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 shadow-lg shadow-red-500/20"
+                    className="w-full py-3.5 text-xs font-black uppercase tracking-widest bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 shadow-lg shadow-red-500/20"
                   >
-                    Stop Alert 🛑
+                    Stop Alarm 🛑
                   </Button>
                 </div>
               </Glass>
