@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary: 99, 102, 241;
+    --secondary: 236, 72, 153;
+    --accent: 6, 182, 212;
+  }
+
+  body {
+    @apply bg-[#0f172a] selection:bg-primary/30;
+    font-family: 'Century Gothic', 'AppleGothic', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Century Gothic', 'AppleGothic', sans-serif;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-white/20;
+}
