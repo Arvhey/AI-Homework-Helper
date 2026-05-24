@@ -10,24 +10,27 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let active = true
 
-    // Safety timeout: ensure loading screen disappears after 1.5s max, no matter what!
+    // Safety timeout: fallback in case Supabase never responds (e.g. no internet)
+    // 5s gives enough time for the stored session to be read from localStorage on mobile
     const safetyTimeout = setTimeout(() => {
       if (active) {
         setLoading(false)
-        console.warn("Auth check safety timeout reached.")
+        console.warn("Auth check safety timeout reached — no session found.")
       }
-    }, 1500)
+    }, 5000)
 
     const getSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (active) {
+          clearTimeout(safetyTimeout)  // Cancel fallback — we got a definitive answer
           setUser(session?.user ?? null)
           setLoading(false)
         }
       } catch (e) {
         console.error('Failed to get session:', e)
         if (active) {
+          clearTimeout(safetyTimeout)
           setLoading(false)
         }
       }

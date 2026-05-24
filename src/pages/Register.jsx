@@ -11,10 +11,16 @@ import { useToast } from '../hooks/useToast'
 
 const Register = () => {
   const navigate = useNavigate()
-  const { signUp } = useAuth()
+  const { signUp, user } = useAuth()
   const { showToast } = useToast()
   const [formData, setFormData] = React.useState({ fullName: '', email: '', password: '' })
   const [loading, setLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    if (user) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [user, navigate])
 
   const handleRegister = async (e) => {
     e.preventDefault()
@@ -38,6 +44,10 @@ const Register = () => {
       showToast('Registration successful! Please log in.', 'success')
       navigate('/login')
     }
+  }
+
+  if (user) {
+    return null
   }
 
   return (

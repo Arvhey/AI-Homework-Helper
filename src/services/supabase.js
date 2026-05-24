@@ -19,4 +19,11 @@ if (!isValidUrl(supabaseUrl) || finalKey === 'placeholder-key') {
   console.warn('⚠️ Supabase credentials are invalid or missing. Please update your .env file with real project details.')
 }
 
-export const supabase = createClient(finalUrl, finalKey)
+export const supabase = createClient(finalUrl, finalKey, {
+  auth: {
+    persistSession: true,       // Save session to localStorage so it survives app restarts
+    autoRefreshToken: true,     // Automatically refresh the JWT before it expires
+    detectSessionInUrl: true,   // Pick up sessions from OAuth redirect URLs
+    storageKey: 'aihw-auth',    // Unique storage key so cache-busting never accidentally wipes it
+  },
+})

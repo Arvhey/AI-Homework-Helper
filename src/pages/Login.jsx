@@ -12,7 +12,7 @@ import { useToast } from '../hooks/useToast'
 
 const Login = () => {
   const navigate = useNavigate()
-  const { signIn, signUp } = useAuth()
+  const { signIn, signUp, user } = useAuth()
   const { showToast } = useToast()
   const { canInstall, installApp } = useInstall()
   const [mode, setMode] = React.useState('login') // 'login' or 'register'
@@ -22,6 +22,12 @@ const Login = () => {
     fullName: ''
   })
   const [loading, setLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    if (user) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [user, navigate])
 
   // Loading Splash Screen State (Desktop & Mobile)
   const [showSplash, setShowSplash] = React.useState(true)
@@ -60,7 +66,7 @@ const Login = () => {
         showToast(error.message, 'error')
       } else {
         showToast('Welcome back!', 'success')
-        navigate('/dashboard')
+        navigate('/dashboard', { replace: true })
       }
     } else {
       const { error } = await signUp({
@@ -78,6 +84,10 @@ const Login = () => {
         setMode('login')
       }
     }
+  }
+
+  if (user) {
+    return null
   }
 
   if (showSplash) {
