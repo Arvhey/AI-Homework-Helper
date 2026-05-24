@@ -12,20 +12,11 @@ import App from './App.jsx'
 import './index.css'
 
 // Programmatic Cache-Busting and Service Worker upgrade hook
-const APP_VERSION = 'v1.1.5'
+const APP_VERSION = 'v1.1.6'
 try {
   const savedVersion = localStorage.getItem('app_build_version')
   if (savedVersion !== APP_VERSION) {
-    // Preserve the Supabase auth session so the user stays logged in across updates
-    const savedAuth = localStorage.getItem('aihw-auth')
-
     localStorage.setItem('app_build_version', APP_VERSION)
-
-    // Restore auth session immediately after version stamp
-    if (savedAuth) {
-      localStorage.setItem('aihw-auth', savedAuth)
-    }
-
     if ('caches' in window) {
       caches.keys().then(names => {
         for (let name of names) {
