@@ -83,9 +83,7 @@ const Dashboard = () => {
   const { t } = useLanguage()
   const { 
     isDailyEnabled, 
-    setIsDailyEnabled, 
-    dailyTime, 
-    setDailyTime, 
+    setIsDailyEnabled,
     triggerAlarm 
   } = useAlarm()
   const [loading, setLoading] = React.useState(true)
@@ -407,7 +405,7 @@ const Dashboard = () => {
 
             <div className="space-y-4">
               <p className="text-xs text-slate-400 leading-relaxed font-semibold">
-                Set a daily study reminder time. When the scheduled time matches, your physical phone's camera **LED flashlight** will strobe and play an emergency siren!
+                When enabled, you will receive a direct notification every day exactly at 8:00 PM. It will appear in your Intelligence Alerts and trigger your phone's LED flashlight!
               </p>
 
               <div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-2xl p-4">
@@ -416,13 +414,7 @@ const Dashboard = () => {
                 </div>
                 <div className="flex-1">
                   <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Scheduled Alert</div>
-                  <input
-                    type="time"
-                    value={dailyTime}
-                    disabled={!isDailyEnabled}
-                    onChange={(e) => setDailyTime(e.target.value)}
-                    className="bg-transparent text-white font-black text-base outline-none w-full disabled:opacity-40"
-                  />
+                  <div className="text-white font-black text-base">8:00 PM Daily</div>
                 </div>
               </div>
 

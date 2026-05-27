@@ -15,18 +15,28 @@ const ChatBot = () => {
   const { askAI, loading } = useAI()
   const { showToast } = useToast()
   const { t } = useLanguage()
+  const INITIAL_MESSAGE = { role: 'assistant', content: "Hello! I'm your AI Study Companion. How can I help you today?" }
+
+  const isPollinationsWarning = (text) =>
+    typeof text === 'string' && (
+      text.includes('IMPORTANT NOTICE') ||
+      text.includes('enter.pollinations.ai') ||
+      text.includes('deprecated for **authenticated users**')
+    )
+
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem('desktop_assistant_chat_history')
     if (saved) {
       try {
-        return JSON.parse(saved)
+        const parsed = JSON.parse(saved)
+        // Scrub any cached Pollinations deprecation warnings from history
+        const clean = parsed.filter(m => !isPollinationsWarning(m.content))
+        return clean.length > 0 ? clean : [INITIAL_MESSAGE]
       } catch (e) {
         console.error('Failed to parse desktop chat history', e)
       }
     }
-    return [
-      { role: 'assistant', content: "Hello! I'm your AI Study Companion. How can I help you today?" }
-    ]
+    return [INITIAL_MESSAGE]
   })
 
   // Auto-save chat history on message change
@@ -169,10 +179,13 @@ const ChatBot = () => {
     if (!input.trim()) return
 
     const userMessage = { role: 'user', content: input }
-    setMessages(prev => [...prev, userMessage])
+    const updatedMessages = [...messages, userMessage]
+    setMessages(updatedMessages)
     setInput('')
 
-    const response = await askAI(input)
+    // Pass full conversation history for context-aware responses
+    const history = messages.map(m => ({ role: m.role, content: m.content }))
+    const response = await askAI(input, history)
     if (response) {
       setMessages(prev => [...prev, { role: 'assistant', content: response }])
     }
@@ -186,8 +199,8 @@ const ChatBot = () => {
   ]
 
   return (
-    <Glass className="flex-1 flex flex-col mb-4 overflow-hidden border-white/5">
-      <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+    <div className="flex-1 flex flex-col mb-4 overflow-hidden">
+      <div className="flex-1 overflow-y-auto px-1 py-4 lg:py-6 space-y-6 no-scrollbar">
         <AnimatePresence initial={false}>
           {messages.map((msg, i) => (
             <ChatMessage key={i} msg={msg} />
@@ -200,8 +213,8 @@ const ChatBot = () => {
 
       <PromptSuggestions suggestions={suggestions} onSelect={setInput} />
 
-      {/* Input Area */}
-      <div className="p-4 lg:p-6 bg-white/5 border-t border-white/10">
+      {/* Input Area (Styled as a premium floating Glass card) */}
+      <div className="mt-4 p-4 lg:p-6 bg-white/5 border border-white/10 rounded-2xl shadow-xl backdrop-blur-xl">
         <input 
           type="file" 
           ref={fileInputRef} 
@@ -254,7 +267,7 @@ const ChatBot = () => {
           </Button>
         </div>
       </div>
-    </Glass>
+    </div>
   )
 }
 

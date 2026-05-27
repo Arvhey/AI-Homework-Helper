@@ -80,7 +80,7 @@ const DesktopSidebar = () => {
       {/* Main Navigation Hub */}
       <nav className="flex-1 p-6 space-y-1.5 overflow-y-auto no-scrollbar">
         <div className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] mb-4 px-2">Navigation Console</div>
-        {NAV_ITEMS.map((item) => (
+        {NAV_ITEMS.filter(item => item.label !== 'AI Assistant').map((item) => (
           <NavLink
             key={item.path}
             to={item.path}

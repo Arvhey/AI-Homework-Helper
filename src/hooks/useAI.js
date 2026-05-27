@@ -6,11 +6,19 @@ export const useAI = () => {
   const { isGenerating, setIsGenerating, setCurrentResponse } = useAIContext()
   const [error, setError] = useState(null)
 
-  const askAI = async (prompt) => {
+  const SYSTEM_PROMPT = 'You are a friendly, expert AI Homework Helper and Study Companion. Give concise, clear, well-formatted educational answers. Use bullet points and numbered lists to organize answers when helpful.'
+
+  const askAI = async (prompt, conversationHistory = []) => {
     setIsGenerating(true)
     setError(null)
     try {
-      const response = await aiService.chat([{ role: 'user', content: prompt }])
+      // Build full context: system prompt + history + new user message
+      const messages = [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...conversationHistory.filter(m => m.role === 'user' || m.role === 'assistant'),
+        { role: 'user', content: prompt }
+      ]
+      const response = await aiService.chat(messages)
       setCurrentResponse(response)
       return response
     } catch (err) {

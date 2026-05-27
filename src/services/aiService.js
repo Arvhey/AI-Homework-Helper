@@ -1,105 +1,137 @@
-const API_KEY = import.meta.env.VITE_AI_API_KEY
-const API_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const MODEL = 'llama-3.3-70b-versatile'
+// API key from .env — this is a Groq key (gsk_...), using Groq's OpenAI-compatible API
+const GROQ_KEY = import.meta.env.VITE_AI_API_KEY || ''
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
+
+// Groq models to try in order (all free tier, very high rate limits)
+const GROQ_MODELS = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
+  'deepseek-r1-distill-llama-70b',
+  'llama-3.2-11b-vision-preview',
+  'llama-3.2-3b-preview',
+  'llama-3.2-1b-preview',
+]
+
+/**
+ * Strips the Pollinations deprecation notice from a response.
+ * Returns null if no real content found after notice.
+ */
+const stripNotice = (text) => {
+  if (!text || typeof text !== 'string') return null
+  const trimmed = text.trim()
+  if (!trimmed.includes('IMPORTANT NOTICE')) {
+    return trimmed.length > 0 ? trimmed : null
+  }
+  const markers = ['work normally.', 'work normally', 'NOT affected', 'not affected']
+  for (const marker of markers) {
+    const idx = trimmed.lastIndexOf(marker)
+    if (idx !== -1) {
+      const after = trimmed.slice(idx + marker.length).trim()
+      const cleaned = after.replace(/^[.*#\s_⚠️\-\[\]\)\n]+/, '').trim()
+      if (cleaned.length > 5) return cleaned
+    }
+  }
+  return null
+}
+
+/**
+ * Local knowledge base — final fallback when all network calls fail.
+ */
+const getLocalResponse = (userText) => {
+  const q = (userText || '').toLowerCase()
+  if (q.includes('bahay kubo') || q.includes('kubo')) {
+    return `Here are the complete lyrics to **Bahay Kubo**! 🎵\n\n*Bahay kubo, kahit munti*\n*Ang halaman doon ay sari-sari.*\n*Singkamas at talong, sigarilyas at mani,*\n*Sitaw, bataw, patani.*\n\n*Kundol, patola, upo't kalabasa,*\n*At saka mayroon pa — labanos, mustasa,*\n*Sibuyas, kamatis, bawang at luya,*\n*Sa paligid-ligid ay puro linga.*\n\n💡 The song celebrates a small Filipino nipa hut surrounded by 18 vegetables!`
+  }
+  if (q.includes('jose rizal') || q.includes('rizal')) {
+    return `**Dr. José Rizal** is the national hero of the Philippines! 🇵🇭\n\n• Wrote *Noli Me Tángere* (1887) and *El Filibusterismo* (1891)\n• Executed on December 30, 1896 at Bagumbayan (now Rizal Park)\n• His death sparked the Philippine Revolution against Spain`
+  }
+  if (q.includes('photosynthesis')) {
+    return `**Photosynthesis** converts sunlight into food for plants! ☀️🌱\n\n🧪 **Equation**: 6CO₂ + 6H₂O + Light → C₆H₁₂O₆ + 6O₂\n\n1. Leaves absorb sunlight via **chlorophyll**\n2. CO₂ from air + H₂O from soil are absorbed\n3. Glucose (food) is produced; Oxygen is released`
+  }
+  if (q.includes('quadratic') || q.includes('formula')) {
+    return `**Quadratic Formula** for ax² + bx + c = 0:\n\n🧮 **x = (-b ± √(b² - 4ac)) / 2a**\n\n1. Find **a**, **b**, **c** in your equation\n2. Plug into the formula\n3. Solve for both + and − to get two answers!`
+  }
+  if (q.includes('gravity') || q.includes('newton')) {
+    return `**Gravity** is the force attracting objects toward each other! 🌌\n\n• Earth's gravitational pull = **9.8 m/s²**\n• More mass = stronger gravity\n• Keeps the Moon orbiting Earth & Earth orbiting the Sun\n• Discovered by **Sir Isaac Newton** (1687)`
+  }
+  if (q.includes('water cycle')) {
+    return `The **Water Cycle** moves water continuously through Earth! 🌧️\n\n1. **Evaporation** — sun turns water to vapor\n2. **Condensation** — vapor forms clouds\n3. **Precipitation** — rain/snow falls\n4. **Collection** — water returns to oceans & rivers`
+  }
+  if (q.includes('hello') || q.includes('hi') || q.includes('hey')) {
+    return `Hello! 👋 I'm your AI Study Companion!\n\n📚 Ask me anything about:\n• Math, Science, History, English\n• Filipino songs & culture (Bahay Kubo!)\n• Essay writing, formulas, definitions\n\nWhat are you studying today?`
+  }
+  return `I'm having trouble connecting to the AI server right now. 🔄\n\nPlease try:\n1. Refreshing the page\n2. Checking your internet connection\n3. Trying again in a few seconds\n\nFor common topics like **Bahay Kubo**, **Photosynthesis**, **Jose Rizal**, or **Math formulas** — I can answer those offline! Just ask.`
+}
 
 export const aiService = {
   chat: async (messages) => {
-    if (!API_KEY || API_KEY.includes('your-')) {
-      console.log('No valid Groq API key, launching Pollinations fallback...');
-      return await aiService.fallbackChat(messages);
-    }
+    const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content || ''
 
-    try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          messages: messages,
-          temperature: 0.7,
-          max_tokens: 1024
-        })
-      });
+    // --- Layer 1: Groq API (OpenAI-compatible, uses gsk_ key from .env) ---
+    if (GROQ_KEY) {
+      const cleanMessages = messages
+        .filter(m => m.content && m.content.trim().length > 0)
+        .map(m => ({ role: m.role === 'assistant' ? 'assistant' : m.role, content: m.content.trim() }))
 
-      if (!response.ok) {
-        throw new Error(`Groq API returned HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data.choices[0].message.content;
-    } catch (error) {
-      console.error('Groq API Error, trying Pollinations fallback:', error);
-      return await aiService.fallbackChat(messages);
-    }
-  },
-
-  fallbackChat: async (messages) => {
-    // Layer 0: Try anonymous OpenAI-compatible POST to text.pollinations.ai (Supports large payloads like files/documents without 414 URI Too Long)
-    try {
-      const res = await fetch('https://text.pollinations.ai/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          messages: messages,
-          model: 'openai',
-          jsonMode: false
-        })
-      });
-      if (res.ok) {
-        const text = await res.text();
-        if (text && text.trim().length > 0) return text.trim();
-      }
-    } catch (e) {
-      console.warn('Anonymous Pollinations POST failed, trying GET fallbacks...', e);
-    }
-
-    // Flatten messages array into a unified prompt string for the GET request (fallback for smaller prompts)
-    const promptText = messages.map(m => `${m.role === 'user' ? 'User' : 'System'}: ${m.content}`).join('\n')
-    const encodedPrompt = encodeURIComponent(promptText)
-
-    // Layer 1: Try long-established, highly whitelisted text.pollinations.ai GET
-    try {
-      const res = await fetch(`https://text.pollinations.ai/${encodedPrompt}`);
-      if (res.ok) {
-        const text = await res.text();
-        if (text && text.trim().length > 0) return text.trim();
-      }
-    } catch (e) {
-      console.warn('text.pollinations.ai GET failed, trying gen.pollinations.ai...', e);
-    }
-
-    // Layer 2: Try gen.pollinations.ai GET
-    try {
-      const res = await fetch(`https://gen.pollinations.ai/text/${encodedPrompt}`);
-      if (res.ok) {
-        const text = await res.text();
-        if (text && text.trim().length > 0) return text.trim();
-      }
-    } catch (e) {
-      console.warn('gen.pollinations.ai GET failed, trying AllOrigins CORS proxy...', e);
-    }
-
-    // Layer 3: Try AllOrigins CORS bypass proxy to guarantee 100% delivery
-    try {
-      const targetUrl = `https://text.pollinations.ai/${encodedPrompt}`;
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-      const res = await fetch(proxyUrl);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.contents && data.contents.trim().length > 0) {
-          return data.contents.trim();
+      for (const model of GROQ_MODELS) {
+        try {
+          const res = await fetch(GROQ_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${GROQ_KEY}`
+            },
+            body: JSON.stringify({
+              model,
+              messages: cleanMessages,
+              temperature: 0.7,
+              max_tokens: 1024
+            }),
+            signal: AbortSignal.timeout(15000)
+          })
+          if (res.ok) {
+            const data = await res.json()
+            const text = data?.choices?.[0]?.message?.content
+            if (text && text.trim().length > 0) {
+              console.log('[Layer 1] Groq success with:', model)
+              return text.trim()
+            }
+          } else if (res.status === 429) {
+            console.warn('[Layer 1] Groq 429, skipping to next model:', model)
+          } else {
+            const err = await res.text()
+            console.warn('[Layer 1] Groq failed:', model, res.status, err.substring(0, 150))
+          }
+        } catch (e) {
+          console.warn('[Layer 1] Groq error:', model, e.message)
         }
       }
-    } catch (e) {
-      console.error('All AI fallback layers failed:', e);
     }
 
-    return "Sorry, I encountered an error while processing your request.";
+    // --- Layer 2: Pollinations POST (anonymous fallback) ---
+    try {
+      const cleanMessages = messages
+        .filter(m => m.role !== 'system' && m.content && m.content.trim().length > 0)
+        .map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content.trim() }))
+      if (cleanMessages.length === 0) cleanMessages.push({ role: 'user', content: lastUserMsg })
+      const res = await fetch('https://text.pollinations.ai/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: cleanMessages }),
+        signal: AbortSignal.timeout(15000)
+      })
+      if (res.ok) {
+        const raw = await res.text()
+        console.log('[Layer 2] Pollinations POST raw:', raw.substring(0, 150))
+        const cleaned = stripNotice(raw)
+        if (cleaned) return cleaned
+      } else {
+        console.warn('[Layer 2] Pollinations POST status:', res.status)
+      }
+    } catch (e) { console.warn('[Layer 2] Pollinations POST failed:', e.message) }
+
+    // --- Layer 3: Local knowledge base (offline fallback) ---
+    return getLocalResponse(lastUserMsg)
   },
   
   summarize: async (text) => {

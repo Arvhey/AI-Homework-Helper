@@ -12,7 +12,7 @@ import App from './App.jsx'
 import './index.css'
 
 // Programmatic Cache-Busting and Service Worker upgrade hook
-const APP_VERSION = 'v1.1.6'
+const APP_VERSION = 'v1.1.7'
 try {
   const savedVersion = localStorage.getItem('app_build_version')
   if (savedVersion !== APP_VERSION) {

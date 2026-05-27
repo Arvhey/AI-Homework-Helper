@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ai-helper-v13';
+const CACHE_NAME = 'ai-helper-v15';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -52,5 +52,47 @@ self.addEventListener('fetch', event => {
         // Network offline/failed, load from cache
         return caches.match(event.request);
       })
+  );
+});
+
+// Handle Background Push Notifications
+self.addEventListener('push', function(event) {
+  if (event.data) {
+    const data = event.data.json();
+    const options = {
+      body: data.body || "Time to crush your study goals!",
+      icon: "/logo.png",
+      badge: "/logo.png",
+      vibrate: [500, 250, 500, 250, 500],
+      requireInteraction: true,
+      data: {
+        url: data.url || "/"
+      }
+    };
+
+    event.waitUntil(
+      self.registration.showNotification(data.title || "⏰ DAILY STUDY ALARM! 🚨", options)
+    );
+  }
+});
+
+// Handle Notification Clicks (opens the app)
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+  
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(windowClients) {
+      // If the app is already open, focus it
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i];
+        if (client.url.includes(self.registration.scope) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // Otherwise, open a new window
+      if (clients.openWindow) {
+        return clients.openWindow(event.notification.data.url);
+      }
+    })
   );
 });

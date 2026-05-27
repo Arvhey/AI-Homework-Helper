@@ -4,40 +4,43 @@ import { Bot, X, Send, Sparkles, Brain, GraduationCap, Paperclip, Trash2, Histor
 import Glass from './ui/Glass'
 import Button from './ui/Button'
 import { useToast } from '../hooks/useToast'
+import { aiService } from '../services/aiService'
 
 const MobileAiAssistant = () => {
   const [isOpen, setIsOpen] = useState(false)
+
+  const isPollinationsWarning = (text) =>
+    typeof text === 'string' && (
+      text.includes('IMPORTANT NOTICE') ||
+      text.includes('enter.pollinations.ai') ||
+      text.includes('deprecated for **authenticated users**')
+    )
+
+  const DEFAULT_AI_MSG = {
+    id: 1,
+    sender: 'ai',
+    text: "Hello! 👋 I am your AI Homework Companion. Ask me any math, science, or writing question, and I'll help you solve it instantly!",
+    timestamp: new Date()
+  }
+
   const [sessions, setSessions] = useState(() => {
     const saved = localStorage.getItem('homework_helper_chat_sessions')
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
+        // Scrub any cached Pollinations deprecation notices from all sessions
         return parsed.map(session => ({
           ...session,
-          messages: session.messages.map(msg => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp)
-          }))
+          messages: session.messages
+            .filter(msg => !isPollinationsWarning(msg.text))
+            .map(msg => ({ ...msg, timestamp: new Date(msg.timestamp) }))
         }))
       } catch (e) {
         console.error('Failed to parse chat sessions', e)
       }
     }
     const defaultSessionId = Date.now()
-    return [
-      {
-        id: defaultSessionId,
-        title: 'New Chat 🤖',
-        messages: [
-          {
-            id: 1,
-            sender: 'ai',
-            text: "Hello! 👋 I am your AI Homework Companion. Ask me any math, science, or writing question, and I'll help you solve it instantly!",
-            timestamp: new Date()
-          }
-        ]
-      }
-    ]
+    return [{ id: defaultSessionId, title: 'New Chat 🤖', messages: [DEFAULT_AI_MSG] }]
   })
 
   const [activeSessionId, setActiveSessionId] = useState(() => {
@@ -107,7 +110,7 @@ const MobileAiAssistant = () => {
     e.stopPropagation()
     const sessionToRename = sessions.find(s => s.id === id)
     if (!sessionToRename) return
-    
+
     const newName = window.prompt("Enter new title for this chat:", sessionToRename.title)
     if (newName && newName.trim().length > 0) {
       setSessions(prev => prev.map(s => {
@@ -174,14 +177,14 @@ const MobileAiAssistant = () => {
           const typedarray = new Uint8Array(e.target.result)
           const pdf = await pdfjs.getDocument(typedarray).promise
           let fullText = ''
-          
+
           for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i)
             const textContent = await page.getTextContent()
             const pageText = textContent.items.map(item => item.str).join(' ')
             fullText += pageText + '\n'
           }
-          
+
           resolve(fullText)
         } catch (err) {
           reject(err)
@@ -272,19 +275,14 @@ const MobileAiAssistant = () => {
     if (!text.trim()) return
 
     const userMsg = { id: Date.now(), sender: 'user', text, timestamp: new Date() }
-    
-    // Append to active session and auto-rename title if default
+
     setSessions(prev => prev.map(s => {
       if (s.id === activeSessionId) {
         const isDefaultTitle = s.title === 'New Chat 🤖' || s.title === 'New Chat'
-        const newTitle = isDefaultTitle 
+        const newTitle = isDefaultTitle
           ? (text.length > 25 ? text.substring(0, 25) + '...' : text)
           : s.title
-        return {
-          ...s,
-          title: newTitle,
-          messages: [...s.messages, userMsg]
-        }
+        return { ...s, title: newTitle, messages: [...s.messages, userMsg] }
       }
       return s
     }))
@@ -293,76 +291,34 @@ const MobileAiAssistant = () => {
     setIsTyping(true)
 
     let responseText = ''
+    const systemPrompt = 'You are a friendly, expert AI Homework Helper and Study Companion. Give concise, clear, well-formatted educational answers. Use bullet points and numbered lists to organize answers when helpful.'
+
+    // Map conversation history to the standard role/content format
+    const mappedMessages = [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(m => ({
+        role: m.sender === 'ai' ? 'assistant' : 'user',
+        content: m.text
+      }))
+    ]
 
     try {
-      const systemPrompt = 'You are a friendly, expert AI Homework Helper and Study Companion for Filipino students. Give concise, clear, well-formatted educational answers. For Tagalog folk songs like Bahay Kubo, provide the complete lyrics. Use bullet points and numbered lists to organize answers.'
-
-      const promptText = `System: ${systemPrompt}\nUser: ${text}`
-      const encodedPrompt = encodeURIComponent(promptText)
-
-      // Layer 1: text.pollinations.ai
-      try {
-        const res = await fetch(`https://text.pollinations.ai/${encodedPrompt}`, { signal: AbortSignal.timeout(8000) })
-        if (res.ok) {
-          const raw = await res.text()
-          if (raw && raw.trim().length > 0) responseText = raw.trim()
-        }
-      } catch (err) {
-        console.warn('Chat Layer 1 failed, trying Layer 2...', err)
-      }
-
-      // Layer 2: gen.pollinations.ai
-      if (!responseText) {
-        try {
-          const res = await fetch(`https://gen.pollinations.ai/text/${encodedPrompt}`, { signal: AbortSignal.timeout(8000) })
-          if (res.ok) {
-            const raw = await res.text()
-            if (raw && raw.trim().length > 0) responseText = raw.trim()
-          }
-        } catch (err) {
-          console.warn('Chat Layer 2 failed, trying Layer 3 proxy...', err)
-        }
-      }
-
-      // Layer 3: AllOrigins CORS proxy
-      if (!responseText) {
-        try {
-          const targetUrl = `https://text.pollinations.ai/${encodedPrompt}`
-          const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`
-          const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) })
-          if (res.ok) {
-            const data = await res.json()
-            if (data && data.contents && data.contents.trim().length > 0) {
-              responseText = data.contents.trim()
-            }
-          }
-        } catch (err) {
-          console.error('Chat Layer 3 failed, using offline fallback:', err)
-          responseText = getLocalResponse(text)
-        }
-      }
-
-      if (!responseText) {
-        responseText = getLocalResponse(text)
-      }
-    } catch {
+      responseText = await aiService.chat(mappedMessages)
+    } catch (err) {
+      console.warn('Centralized aiService call failed, using offline fallback', err)
       responseText = getLocalResponse(text)
     }
 
+    if (!responseText) {
+      responseText = getLocalResponse(text)
+    }
+
+
     setTimeout(() => {
       setIsTyping(false)
-      const aiMsg = {
-        id: Date.now() + 1,
-        sender: 'ai',
-        text: responseText,
-        timestamp: new Date()
-      }
       setSessions(prev => prev.map(s => {
         if (s.id === activeSessionId) {
-          return {
-            ...s,
-            messages: [...s.messages, aiMsg]
-          }
+          return { ...s, messages: [...s.messages, { id: Date.now() + 1, sender: 'ai', text: responseText, timestamp: new Date() }] }
         }
         return s
       }))
@@ -376,7 +332,7 @@ const MobileAiAssistant = () => {
         <div className="relative">
           {/* Pulsing Outer Ring */}
           <div className="absolute inset-0 rounded-full bg-accent/30 animate-ping" />
-          
+
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -409,18 +365,17 @@ const MobileAiAssistant = () => {
               className="w-full max-w-md h-[80vh] md:w-96 md:h-[550px] flex flex-col relative z-10 rounded-2xl overflow-hidden shadow-2xl"
             >
               <Glass className="flex-1 flex flex-col border-white/20 bg-[#0d1220]/90 backdrop-blur-2xl ring-1 ring-white/10 shadow-2xl h-full">
-                
+
                 {/* Header */}
                 <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02] z-50">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <button
                       onClick={() => setIsHistoryOpen(!isHistoryOpen)}
                       title="Chat History"
-                      className={`p-1.5 rounded-lg border transition-all shrink-0 ${
-                        isHistoryOpen 
-                          ? "bg-primary/20 border-primary/30 text-primary" 
+                      className={`p-1.5 rounded-lg border transition-all shrink-0 ${isHistoryOpen
+                          ? "bg-primary/20 border-primary/30 text-primary"
                           : "bg-white/5 border-white/10 text-slate-400 hover:text-white"
-                      }`}
+                        }`}
                     >
                       <History className="w-4 h-4" />
                     </button>
@@ -477,17 +432,16 @@ const MobileAiAssistant = () => {
                                 setActiveSessionId(s.id)
                                 setIsHistoryOpen(false)
                               }}
-                              className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${
-                                isActive 
-                                  ? 'bg-primary/10 border-primary/30 text-white font-bold' 
+                              className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${isActive
+                                  ? 'bg-primary/10 border-primary/30 text-white font-bold'
                                   : 'bg-white/5 border-white/5 text-slate-300 hover:bg-white/10 hover:border-white/10'
-                              }`}
+                                }`}
                             >
                               <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                 <Bot className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary' : 'text-slate-500'}`} />
                                 <span className="text-xs truncate">{s.title}</span>
                               </div>
-                              
+
                               {/* Session Action Buttons */}
                               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0 ml-2">
                                 <button
@@ -521,16 +475,14 @@ const MobileAiAssistant = () => {
                       className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-relaxed shadow-lg ${
-                          msg.sender === 'user'
+                        className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-relaxed shadow-lg ${msg.sender === 'user'
                             ? 'bg-gradient-to-r from-primary to-accent text-white rounded-br-none border border-white/10'
                             : 'bg-white/5 border border-white/10 text-slate-200 rounded-bl-none'
-                        }`}
+                          }`}
                       >
                         <div className="whitespace-pre-line font-medium">{msg.text}</div>
-                        <div className={`text-[8px] mt-1.5 opacity-50 flex items-center gap-1 ${
-                          msg.sender === 'user' ? 'justify-end text-white' : 'justify-start text-slate-400'
-                        }`}>
+                        <div className={`text-[8px] mt-1.5 opacity-50 flex items-center gap-1 ${msg.sender === 'user' ? 'justify-end text-white' : 'justify-start text-slate-400'
+                          }`}>
                           {msg.sender === 'ai' ? <Brain className="w-2.5 h-2.5" /> : <GraduationCap className="w-2.5 h-2.5" />}
                           {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
@@ -548,7 +500,7 @@ const MobileAiAssistant = () => {
                       </div>
                     </div>
                   )}
-                  
+
                   <div ref={messagesEndRef} />
                 </div>
 
@@ -572,11 +524,11 @@ const MobileAiAssistant = () => {
 
                 {/* Input Bar */}
                 <div className="p-4 border-t border-white/10 bg-white/[0.02]">
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    onChange={handleFileUpload} 
-                    className="hidden" 
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    className="hidden"
                     accept=".txt,.js,.py,.md,.html,.css,.json,.pdf,.docx"
                   />
                   <form
